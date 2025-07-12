@@ -3,6 +3,7 @@ import torchvision.transforms as transforms
 from PIL import Image
 import os
 from igfe import IGFE
+from encoder import PDLPR_Encoder
 
 transform = transforms.Compose([
     transforms.Resize((48, 144)),         # Resize esatto richiesto da PDLPR
@@ -46,4 +47,10 @@ with torch.no_grad():
     features = model(images)  # Output: [B, 512, 6, 18]
     print("Output shape:", features.shape)
 
-show_feature_map(features)
+
+encoder = PDLPR_Encoder()
+encoder.eval()
+
+with torch.no_grad():
+    output = encoder(features) 
+    print("Output shape:", output.shape)
