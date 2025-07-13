@@ -6,6 +6,7 @@ path: dataset
 # Relative paths to training and validation image folders
 train: images/train
 val: images/val
+test: images/test
 
 # Number of classes
 nc: 1
