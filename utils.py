@@ -31,6 +31,22 @@ def yoloprediction_to_pdlpr_input(x_center, y_center, width, height, image_path)
 
     return cropped_img
 
+def compute_iou(box_1, box_2):
+    #it is a metric that involves the intersection of the two areas
+    #over the union, and returns a matching percentage
+    
+    #coputing the coordinate of the intersections
+    x1 = max(box_1[0], box_2[0])
+    y1 = max(box_1[1], box_2[1])
+    x2 = min(box_1[2], box_2[2])
+    y2 = min(box_1[3], box_2[3])
+
+    interArea = max(0, x2 - x1) * max(0, y2 - y1)
+    boxAArea = (box_1[2] - box_1[0]) * (box_1[3] - box_1[1])
+    boxBArea = (box_2[2] - box_2[0]) * (box_2[3] - box_2[1])
+
+    iou = interArea / float(boxAArea + boxBArea - interArea + 1e-6)  #+1e-6 is used to avoid the division per zero
+    return iou
 
 # not used !!!
 def save_metrics_txt(metrics, model_name):

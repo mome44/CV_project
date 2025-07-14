@@ -1,9 +1,12 @@
-import torch
-from torch.utils.data import Dataset
-from PIL import Image
 import os
+import torch
+from PIL import Image
 from pathlib import Path
+from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
+import torchvision.transforms.functional as F
+import torchvision.transforms as T
+from torchvision import transforms
 from globals import BATCH_SIZE_TRAIN_Y, BATCH_SIZE_TEST_Y
 
 
@@ -114,3 +117,124 @@ class CCPDDataset(Dataset):
 
         return train_loader, val_loader, test_loader
 
+
+#this class helps to initialize the dataloader for the 
+class PlateDataset(Dataset):
+    def __init__(self, img_folder, label_folder, transform=None):
+        self.img_folder = img_folder
+        self.label_folder = label_folder
+        #self.transform = transform
+
+        #this is the list of all the filenames
+        self.file_names = self.getnames(img_folder)
+    
+    def getnames(self, img_folder):
+        file_list =[]
+        for file_name in os.listdir(img_folder):
+            if file_name.endswith('.jpg'):
+                file_list.append(file_name)
+        return sorted(file_list)
+
+    def __len__(self):
+        return len(self.file_names)
+
+    def transform(self, img):
+        resize_transform = T.Compose([
+            T.Resize(600),
+            T.ToTensor()   # converte PIL (o numpy) in Tensor
+              # ridimensiona lato più corto/lungo a 800 px
+        ])
+        img= resize_transform(img)
+        return img
+
+    def __getitem__(self, idx):
+        # Image
+        img_name = self.file_names[idx]
+        label_name = img_name.replace('.jpg', '.txt')
+        img_path = os.path.join(self.img_folder, img_name)
+        image = Image.open(img_path).convert("RGB")
+
+        width, height = image.size
+
+        #labels
+        label_path = os.path.join(self.label_folder, label_name)
+        with open(label_path, "r", encoding="utf-8") as f:
+            line = f.readline().strip()
+
+        parts = line.split()
+        class_id = int(parts[0])
+        x_center = float(parts[1])
+        y_center = float(parts[2])
+        patch_width = float(parts[3])
+        patch_height = float(parts[4])
+    
+        #convert the coordinates into the faster cnn
+        x_min = (x_center - patch_width / 2) * width
+        y_min = (y_center - patch_height / 2) * height
+        x_max = (x_center + patch_width / 2) * width
+        y_max = (y_center + patch_height / 2) * height
+
+        boxes = torch.tensor([[x_min, y_min, x_max, y_max]], dtype=torch.float32)
+        labels = torch.tensor([class_id], dtype=torch.int64)
+
+        #the target and boxes that the fastercnn takes in input
+        target = {
+            "boxes": boxes,
+            "labels": labels
+        }
+    
+        image = self.transform(image)
+
+        return image, target
+    
+
+class RecognitionDataset(Dataset):
+    def __init__(self, img_folder, label_folder, transform=None):
+        self.img_folder = img_folder
+        self.label_folder = label_folder
+        #self.transform = transform
+
+        #this is the list of all the filenames
+        self.file_names = self.getnames(img_folder)
+    
+    def getnames(self, img_folder):
+        file_list =[]
+        for file_name in os.listdir(img_folder):
+            if file_name.endswith('.jpg'):
+                file_list.append(file_name)
+        return sorted(file_list)
+
+    def __len__(self):
+        return len(self.file_names)
+
+    def transform(self, img):
+        preprocess = transforms.Compose([
+            transforms.ToPILImage(),
+            transforms.Grayscale(),
+            transforms.Resize((48, 144)),
+            transforms.ToTensor(),
+            transforms.Normalize((0.5,), (0.5,))
+        ])
+        img= preprocess(img)
+        return img
+
+    def __getitem__(self, idx):
+
+        img_name = self.file_names[idx]
+        
+        img_path = os.path.join(self.img_folder, img_name)
+        image = Image.open(img_path).convert("RGB")
+        fields = img_name.split("-")
+        plate_number = fields[4]
+        character_id_list = plate_number.split("_")
+        plate_id = []
+        for c in character_id_list:
+            plate_id.append(int(c))
+ 
+        label = torch.tensor(plate_id, dtype=torch.long)
+        
+
+        image = self.transform(image)
+    
+        target_length = len(label)
+        return image, label, target_length
