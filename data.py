@@ -140,7 +140,7 @@ class PlateDataset(Dataset):
 
     def transform(self, img):
         resize_transform = T.Compose([
-            T.Resize(600),
+            T.Resize(400),
             T.ToTensor()   # converte PIL (o numpy) in Tensor
               # ridimensiona lato più corto/lungo a 800 px
         ])

@@ -7,6 +7,7 @@ from itertools import product
 from data import PlateDataset
 from utils import compute_iou
 from globals import IOU_THRESHOLD
+from tqdm import tqdm
 #Hyperparameters combinations
 batch_sizes = [16, 32]
 learning_rates = [0.001, 0.002]
@@ -18,7 +19,7 @@ epochs = [10, 20]
 combinations = product(batch_sizes, learning_rates, weight_decays, epochs)
 
 #executing the training and testing for all the possible combinations to get the best one
-for bs, lr, mom, wd, ne in combinations:
+for bs, lr, wd, ne in combinations:
 
     #Hyperparameters
     BATCH_SIZE = bs
@@ -45,15 +46,15 @@ for bs, lr, mom, wd, ne in combinations:
     #model.head.classification_head = RetinaNetClassificationHead(in_channels, num_anchors, num_classes=2)
 
     #cambiare il dataloader in modo che ce ne sia uno per train validation e test
-    dataset = PlateDataset("dataset/images", "dataset/labels")
-    train_dataset = PlateDataset("dataset/images/train", "dataset/labels/train")
-    val_dataset = PlateDataset("dataset/images/val", "dataset/labels/val")
-    test_dataset = PlateDataset("dataset/images/test", "dataset/labels/test")
+    dataset = PlateDataset("dapaset/images", "dataset/labels")
+    train_dataset = PlateDataset("dapaset/images/train", "dapaset/labels/train")
+    val_dataset = PlateDataset("dapaset/images/val", "dapaset/labels/val")
+    test_dataset = PlateDataset("dapaset/images/test", "dapaset/labels/test")
 
 
     train_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, collate_fn=lambda x: tuple(zip(*x)))
-    val_dataloader = torch.utils.data.DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=True, collate_fn=lambda x: tuple(zip(*x)))
-    test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=True, collate_fn=lambda x: tuple(zip(*x)))
+    val_dataloader = torch.utils.data.DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, collate_fn=lambda x: tuple(zip(*x)))
+    #test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=True, collate_fn=lambda x: tuple(zip(*x)))
     #this optimizer uses stochastic gradient descent and has in input the parameters (weights) from 
     #the pretrained model
     params = model.parameters()
@@ -92,8 +93,8 @@ for bs, lr, mom, wd, ne in combinations:
 
         i=0
         #does the for loop for all the items in the same batch
-        for images, labels in train_dataloader:
-            print(f"Batch {i + 1}/{len(train_dataloader)}")
+        for images, labels in tqdm(train_dataloader, desc=f"Epoch {e+1}/{NUM_EPOCHS} - Training"):
+            #print(f"Batch {i + 1}/{len(train_dataloader)}")
             #moves the images and labels to the GPU
             images = list(img.to(device) for img in images)
             labels = [{k: v.to(device) for k, v in t.items()} for t in labels]
@@ -112,33 +113,36 @@ for bs, lr, mom, wd, ne in combinations:
 
             train_loss += total_step_loss.item()
             #put the model in the evaluation phase to get the preditions
+           
             model.eval() 
             with torch.no_grad():
                 train_outputs = model(images)
+            
             model.train()
             for pred, target in zip(train_outputs, labels):
-                    #prediction is a list that contains a score from 0 to 1 that 
-                    #includes the confidence of the answer, so if this score is less than 0.5
-                    #we will not consider it               
-                    if len(pred['scores']) > 0:
-                        #we take the index of the detected plate with the best score
-                        best_index = pred['scores'].argmax()
-                        best_box = pred['boxes'][best_index]
-
-                        true_box = target['boxes'].cpu()[0]
-
-                        single_iou = compute_iou(best_box.numpy(), true_box.numpy())
-                        #train_iou.append(single_iou)
-                        if single_iou > IOU_THRESHOLD:
-                            train_iou.append(1)
-                            TP_train += 1
-                        else:
-                            train_iou.append(0)
-                            FP_train += 1
+                #prediction is a list that contains a score from 0 to 1 that 
+                #includes the confidence of the answer, so if this score is less than 0.5
+                #we will not consider it   
+                print(pred['scores']) 
+                if len(pred['scores']) > 0:
+                    #we take the index of the detected plate with the best score
+                    best_index = pred['scores'].argmax()
+                    best_box = pred['boxes'][best_index]
+                    true_box = target['boxes'].cpu()[0]
+                    #print(best_box,true_box)
+                    single_iou = compute_iou(best_box.numpy(), true_box.numpy())
+                    #train_iou.append(single_iou)
+                    
+                    if single_iou > IOU_THRESHOLD:
+                        train_iou.append(1)
+                        TP_train += 1
                     else:
-                        FN_train += 1
+                        train_iou.append(0)
+                        FP_train += 1
+                else:
+                    FN_train += 1
             i+=1
-            
+        print(train_iou)
         #compute the mean of the iou training score
         mean_train_iou = sum(train_iou)/len(train_iou)
         iou_scores_train.append(mean_train_iou)
@@ -152,18 +156,14 @@ for bs, lr, mom, wd, ne in combinations:
                 images = [img.to(device) for img in images]
                 labels = [{k: v.to(device) for k, v in t.items()} for t in labels]
 
-                # Calcolo della loss (solo per monitoraggio)
-                loss_dict = model(images, labels)
-                loss = sum(loss for loss in loss_dict.values())
-                val_loss += loss.item()
-
                 # Inference
                 val_outputs = model(images)
 
                 for pred, target in zip(val_outputs, labels):
                     #prediction is a list that contains a score from 0 to 1 that 
                     #includes the confidence of the answer, so if this score is less than 0.5
-                    #we will not consider it               
+                    #we will not consider it
+                    print(pred['scores'])              
                     if len(pred['scores']) > 0:
                         #we take the index of the detected plate with the best score
                         best_index = pred['scores'].argmax()
@@ -172,6 +172,7 @@ for bs, lr, mom, wd, ne in combinations:
                         true_box = target['boxes'].cpu()[0]
 
                         single_iou = compute_iou(best_box.numpy(), true_box.numpy())
+                        
                         #val_iou.append(single_iou)
                         if single_iou > IOU_THRESHOLD:
                             val_iou.append(1)

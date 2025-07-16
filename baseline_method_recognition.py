@@ -5,7 +5,7 @@ import torch.nn.functional as F
 import matplotlib.pyplot as plt
 from itertools import product
 from data import RecognitionDataset
-from network import CNN_CTC_Model
+from network import CNN_CTC_model
 #Hyperparameters combination
 batch_sizes = [16, 32]
 learning_rates = [0.001, 0.002]
@@ -17,7 +17,7 @@ epochs = [10, 20]
 combinations = product(batch_sizes, learning_rates, weight_decays, epochs)
 
 #executing the training and testing for all the possible combinations to get the best one
-for bs, lr, mom, wd, ne in combinations:
+for bs, lr, wd, ne in combinations:
 
     #Hyperparameters
     BATCH_SIZE = bs
@@ -29,11 +29,11 @@ for bs, lr, mom, wd, ne in combinations:
 
     print(f"training with {SAVE_NAME}")
     
-    model = CNN_CTC_Model(7)
+    model = CNN_CTC_model(7)
     ctc_loss = nn.CTCLoss(blank=0) 
-    train_dataset = RecognitionDataset("dataset/images/train", "dataset/labels/train")
-    val_dataset = RecognitionDataset("dataset/images/val", "dataset/labels/val")
-    test_dataset = RecognitionDataset("dataset/images/test", "dataset/labels/test")
+    train_dataset = RecognitionDataset("dataset/crops/train", "dataset/labels_pdlpr/train")
+    val_dataset = RecognitionDataset("dataset/crops/val", "dataset/labels_pdlpr/val")
+    test_dataset = RecognitionDataset("dataset/crops/test", "dataset/labels_pdlpr/test")
 
 
     train_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, collate_fn=lambda x: tuple(zip(*x)))
