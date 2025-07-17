@@ -35,10 +35,10 @@ def train_yolo():
         project = "runs/train",                     # directory in cui salvare gli outputs del training
         name    = model_name.replace(".pt", ""),    # crea una subdir nella cartella del progetto, dove salva i training logs e outputs
         val     = True,                             # run validation qui per creare results.csv e .png
-        plots   = False                             # i plot li farà DOPO il training
+        plots   = False                              
     )
 
-    # model.save(model_name)
+    model.save(model_name)
 
     best_model_path = f"runs/train/{run_name}/weights/best.pt"
     
@@ -53,6 +53,13 @@ if __name__ == "__main__":
     train_model_path = train_yolo()
 
     run_name = get_run_name()
+
+   
+
+
+    # PLOTS dopo il training
+
+
 
     # VALIDATION dopo il training
     # Carica e usa il modello migliore best.pt --> crea una model instance inizializzata con i trained weights
