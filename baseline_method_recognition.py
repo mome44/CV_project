@@ -7,7 +7,7 @@ from itertools import product
 from data import RecognitionDataset
 from network import CNN_CTC_model
 #Hyperparameters combination
-batch_sizes = [16, 32]
+batch_sizes = [64, 32]
 learning_rates = [0.001, 0.002]
 
 weight_decays = [0.0001, 0.0005]
@@ -50,7 +50,7 @@ for bs, lr, wd, ne in combinations:
 
     accuracy_val=[]
     accuracy_train=[]
-
+    total_train_loss=[]
     epsilon = 1e-6
     #TRAIN LOOP we are doing fine tuning on the task of recognizing plate
     for e in range(NUM_EPOCHS):
@@ -62,20 +62,23 @@ for bs, lr, wd, ne in combinations:
 
         i=0
         #does the for loop for all the items in the same batch
-        for images, labels in train_dataloader:
+        for images, labels, target_lengths in train_dataloader:
             print(f"Batch {i + 1}/{len(train_dataloader)}")
-            images = images.to(device)                   # [B, 1, 48, 144]
-            labels = labels.to(device)                   # [B, 7]
-            labels_flat = labels.view(-1)                # [B×7]
+            images = [img.to(device) for img in images]
+            labels = [lab.to(device) for lab in labels]
+            target_lengths = torch.tensor(target_lengths, dtype=torch.long).to(device)
 
-            # Forward
+            # Stack per batch processing
+            images = torch.stack(images)        # [B, 1, 48, 144]
+            labels = torch.stack(labels)        # [B, 7]
+            labels_flat = labels.view(-1)  
             logits = model(images)                       # [T, B, C]
             log_probs = F.log_softmax(logits, dim=2)
             T = logits.size(0)
             B = logits.size(1)
 
             input_lengths = torch.full((B,), T, dtype=torch.long).to(device)
-            target_lengths = torch.full((B,), 7, dtype=torch.long).to(device)
+            target_lengths = torch.full((B,), 8, dtype=torch.long).to(device)
 
             # Loss
             loss = ctc_loss(log_probs, labels_flat, input_lengths, target_lengths)
@@ -84,7 +87,7 @@ for bs, lr, wd, ne in combinations:
             loss.backward()
             optimizer.step()
 
-            total_train_loss += loss.item()
+            #total_train_loss += loss
 
             # Greedy decoding per targa intera
             preds = torch.argmax(log_probs, dim=2).transpose(0, 1)  # [B, T]
@@ -115,22 +118,24 @@ for bs, lr, wd, ne in combinations:
         #Validation phase
         model.eval()
         with torch.no_grad():
-            for images, labels in val_dataloader:
+            for images, labels, target_lengths in val_dataloader:
                 print(f"Batch {j + 1}/{len(val_dataloader)}")
-                images = images.to(device)
-                labels = labels.to(device)
-                labels_flat = labels.view(-1)
-
-                logits = model(images)
+                images = [img.to(device) for img in images]
+                labels = [lab.to(device) for lab in labels]
+                target_lengths = torch.tensor(target_lengths, dtype=torch.long).to(device)
+    
+                # Stack per batch processing
+                images = torch.stack(images)        # [B, 1, 48, 144]
+                labels = torch.stack(labels)        # [B, 7]
+                labels_flat = labels.view(-1)  
+                logits = model(images)                       # [T, B, C]
                 log_probs = F.log_softmax(logits, dim=2)
                 T = logits.size(0)
                 B = logits.size(1)
-
+    
                 input_lengths = torch.full((B,), T, dtype=torch.long).to(device)
-                target_lengths = torch.full((B,), 7, dtype=torch.long).to(device)
-
-                loss = ctc_loss(log_probs, labels_flat, input_lengths, target_lengths)
-                total_val_loss += loss.item()
+                target_lengths = torch.full((B,), 8, dtype=torch.long).to(device)
+              
 
                 preds = torch.argmax(log_probs, dim=2).transpose(0, 1)  # [B, T]
                 decoded_predictions = []

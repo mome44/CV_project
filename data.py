@@ -209,12 +209,12 @@ class RecognitionDataset(Dataset):
 
     def transform(self, img):
         preprocess = transforms.Compose([
-            transforms.ToPILImage(),
-            transforms.Grayscale(),
-            transforms.Resize((48, 144)),
-            transforms.ToTensor(),
+            transforms.Grayscale(),              # converte in 1 canale
+            transforms.Resize((48, 144)),       # adatta a H=48, W=144
+            transforms.ToTensor(),              # [C, H, W]
             transforms.Normalize((0.5,), (0.5,))
         ])
+
         img= preprocess(img)
         return img
 
@@ -227,6 +227,7 @@ class RecognitionDataset(Dataset):
         fields = img_name.split("-")
         plate_number = fields[4]
         character_id_list = plate_number.split("_")
+        #print(plate_number, character_id_list)
         plate_id = []
         for c in character_id_list:
             plate_id.append(int(c))
