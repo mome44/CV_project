@@ -1,7 +1,0 @@
-# Test Set Evaluation (IoU > 0.7)
-# Hyperparams: epochs=10, bs=8, lr=0.001, imgs=416
-metrics/precision(B): 0.9821
-metrics/recall(B): 0.9774
-metrics/mAP50(B): 0.9911
-metrics/mAP50-95(B): 0.7372
-fitness: 0.7626

@@ -1,129 +1,93 @@
-import torch
-import pandas as pd
 import os
+import pandas as pd
+import matplotlib.pyplot as plt
 from pathlib import Path
-from globals import DATASET_PATH_Y, BATCH_SIZE_TRAIN_Y, LR_INIT_Y, EPOCHS_TRAIN_Y, IMAGE_SIZE_Y, IOU_THRESHOLD
 from ultralytics import YOLO
-from utils import save_metrics_txt, plot_accuracy, plot_recall, plot_precision, plot_f1score, plot_iou, validate_model_on_split
-
-
+from globals import *
 
 def get_model_name():
     return f"yolov5_epochs{EPOCHS_TRAIN_Y}_bs{BATCH_SIZE_TRAIN_Y}_lr{LR_INIT_Y}_imgs{IMAGE_SIZE_Y}.pt"
 
+def get_run_name():
+    # Crea un nome univoco per la run di training che sta facendo usando gli hyperparams usati nel modello
+    return get_model_name().replace(".pt", "")
+
+
 def train_yolo():
     model_name = get_model_name()
-    
+    run_name = get_run_name()
+
     if os.path.exists(model_name):
-        print(f"[INFO] Model {model_name} already exists. Skipping training.")
+        print(f"[INFO] Model {model_name} already exists ---> SKIP training!!")
         return YOLO(model_name)
     
+    # Crea un modello untrained basato sui params di configurazione 
     model = YOLO("yolov5s.yaml")
-
-    # The train cannot be done manually
-    # The YOLO API wraps the entire training loop inside .train()
-    # YOLOv5 handles dataloading, loss computation, validation, logging, and saving behind the scenes.
+    
     model.train(
-        data    = "ccpd.yaml",                       # it tells YOLO where the images and labels are
-        epochs  = EPOCHS_TRAIN_Y,
-        batch   = BATCH_SIZE_TRAIN_Y,                # number of images per training batch
+        data    = "ccpd.yaml",                      # path al file .yaml per la configurazione
+        epochs  = EPOCHS_TRAIN_Y,                  
+        batch   = BATCH_SIZE_TRAIN_Y,
         lr0     = LR_INIT_Y,
-        imgsz   = IMAGE_SIZE_Y,                      # image size to resize all inputs to
-        device  = 'cpu',
-        save    = True,                              # save the model weigths after training
-        project = "runs/train",                      # output directory where logs and checkpoints go
-        name    = model_name.replace(".pt", "")      # subfolder name for this run
+        imgsz   = IMAGE_SIZE_Y,
+        save    = True,                             # salva i training checkpoints e i weigths del modello finale
+        device  = "mps",                            # DA CAMBIARE A SECONDA DEL PC --> "cpu"
+        project = "runs/train",                     # directory in cui salvare gli outputs del training
+        name    = model_name.replace(".pt", ""),    # crea una subdir nella cartella del progetto, dove salva i training logs e outputs
+        val     = True,                             # run validation qui per creare results.csv e .png
+        plots   = False                             # i plot li farà DOPO il training
     )
 
-    model.save(model_name)
+    # model.save(model_name)
 
-    return model
+    best_model_path = f"runs/train/{run_name}/weights/best.pt"
+    
+    return best_model_path
+
 
 
 
 if __name__ == "__main__":
 
-    # Construct model name dynamically
-    model_name = get_model_name()
+    # TRAIN
+    train_model_path = train_yolo()
 
-    # train_yolo()
+    run_name = get_run_name()
 
-    # Run validation on val and train
-    validate_model_on_split(model_name, split="val", iou_threshold=IOU_THRESHOLD)
-    validate_model_on_split(model_name, split="train", iou_threshold=IOU_THRESHOLD)
+    # VALIDATION dopo il training
+    # Carica e usa il modello migliore best.pt --> crea una model instance inizializzata con i trained weights
+    best_model = YOLO(train_model_path)
 
+    # Dentro results: mAP@0.5, mAP@0.5:0.95. precision, recall, confusion matrix, curva PR, curva f1, ... --> vengono salvati in runs/detect/val
+    results = best_model.val(
+        data    = "ccpd.yaml",
+        split   = 'val',
+        iou     = IOU_THRESHOLD,
+        device  = "cpu",
+        name    = f"{run_name}_VAL_iou{int(IOU_THRESHOLD*100)}"
+    )
 
-    """
-    YOLOv5 manages everything internally, so we cannot access directly loss and accuracy for each epoch
-    YOLOv5 saves everything automatically in runs/train/<model_name>/results.csv, with columns like these:
-           train/box_loss  train/obj_loss  metrics/precision  metrics/recall  metrics/mAP_0.5
-    epoch
-      0     0.52            0.31            0.67                0.64            0.72
-      1     0.41            0.29            0.71                0.66            0.75
-    ...
+    # print(results)
 
-    """
-    # Read training metrics
-    csv_path = Path("runs/train") / model_name.replace(".pt", "") / "results.csv"
-    df = pd.read_csv(csv_path)
+    output_dir = Path("runs/detect") / f"{run_name}_VAL_iou{int(IOU_THRESHOLD * 100)}"
+    output_dir.mkdir(parents=True, exist_ok=True)
 
-    for i, row in df.iterrows():
-        loss = row["train/box_loss"] + row["train/cls_loss"] + row["train/dfl_loss"]
-        acc = row["metrics/mAP50(B)"]
-        print(f"Epoch {i+1} — Loss: {loss:.4f} — mAP@0.5: {acc:.4f}")
+    # PLOTS
+    # Visto che results.box.map restituisce una lista di valori mAP con iou threshold tra 0.5 e 0.95,
+    # è meglio estrarre l'indice esatto a 0.7
+    iou_threshold = IOU_THRESHOLD
+    iou_index = int((iou_threshold - 0.5) / 0.05)  # 0.7 -> index 4
+    iou = results.box.map
+    print(iou)
 
-    # Save and plots
-    # save_metrics_txt(df, model_name)
-    plot_accuracy(model_name)
-    plot_precision(model_name)
-    plot_recall(model_name)
-    plot_f1score(model_name)
-    plot_iou(model_name)
+    plt.figure()
+    plt.bar([f"IoU@{iou_threshold}"], [iou], color="red")
+    plt.title("IoU Curve (mAP at IoU = 0.7)")
+    plt.ylabel("mAP")
+    plt.ylim(0, 1)
+    plt.grid(axis='y')
+    plt.show()
 
-
-
-
-"""
-# === CONFIGURATION ===
-data_yaml = 'ccpd.yaml'            # Dataset YAML file
-model_cfg = 'yolov5s.yaml'         # Model architecture (optional, auto-handled)
-weights = 'yolov5s.pt'             # Pretrained weights to fine-tune from
-img_size = 640                     # Input image size
-BATCH_SIZE = 16                    # Batch size
-epochs = 80                        # Number of fine-tuning epochs
-name = 'ccpd_finetune'             # Run name
-device = 'cpu'
-
-# === CUSTOM HYPERPARAMETERS ===
-lr0 = 0.001                        # Initial learning rate
-lrf = 0.01                         # Final LR multiplier
-momentum = 0.9                     # SGD momentum
-weight_decay = 0.0002              # L2 regularization
-warmup_epochs = 3.0
-warmup_bias_lr = 0.1
-
-
-model = YOLO('yolov5s.pt')         # yolov5s is fast and has moderate accuracy
-
-train_loader, val_loader, test_loader = get_dataloaders(DATASET_PATH, batch_size=BATCH_SIZE)
-
-# === TRAINING ===
-print(f"\n Starting YOLOv5 fine-tuning on: {data_yaml}")
-
-torch.hub.load('ultralytics/yolov5', 'train',
-    data=data_yaml,
-    cfg=model_cfg,
-    weights=weights,
-    imgsz=img_size,
-    batch_size=BATCH_SIZE,
-    epochs=epochs,
-    lr0=lr0,
-    lrf=lrf,
-    momentum=momentum,
-    weight_decay=weight_decay,
-    warmup_epochs=warmup_epochs,
-    warmup_bias_lr=warmup_bias_lr,
-    name=name,
-    device=device
-)
-"""
+    # Salva nella stessa dir dove stanno i plots della validation
+    plt.savefig(os.path.join(output_dir, "IoU_curve.png"))
+    plt.close()
