@@ -48,15 +48,7 @@ def compute_iou(box_1, box_2):
     iou = interArea / float(boxAArea + boxBArea - interArea + 1e-6)  #+1e-6 is used to avoid the division per zero
     return iou
 
-# not used !!!
-def save_metrics_txt(metrics, model_name):
-    filename = model_name.replace('.pt', '_metrics.txt')
-    with open(filename, 'w') as f:
-        for k, v in metrics.items():
-            f.write(f"{k}: {v}\n")
-
-
-
+"""
 def plot_accuracy(model_name):
     # it uses the mean Average Precision (mAP@0.5) --> it is the standard accuracy measure in object detection
     
@@ -130,72 +122,44 @@ def plot_iou(model_name):
     plt.legend()
     plt.savefig(model_name.replace(".pt", "_mAP50-95(B).png"))
     plt.close()
-
-
-# After testing, you get one dictionary of aggregated results, no per-epoch results,
-# so we cannot create a line plot like during training
-# We ccan plot each as a bar
-def plot_test_metrics(metrics_dict, model_name):
-    labels = []
-    values = []
-
-    for k, v in metrics_dict.items():
-        labels.append(k)
-        values.append(v)
-
-    plt.figure(figsize=(10, 5))
-    bars = plt.bar(labels, values, color='skyblue')
-    plt.ylabel("Score")
-    plt.title("YOLOv5 Test Metrics")
-
-    # Add value on top of each bar
-    for bar in bars:
-        yval = bar.get_height()
-        plt.text(bar.get_x() + bar.get_width()/2, yval + 0.01, f"{yval:.4f}", ha='center')
-
-    filename = model_name.replace(".pt", "_test_metrics_plot.png")
-    plt.xticks(rotation=45, ha='right')
-    plt.tight_layout()
-    plt.savefig(filename)
-    plt.close()
-    print(f"Test metrics plot saved to: {filename}")
+"""
 
 
 
-def validate_model_on_split(model_name, split, iou_threshold=IOU_THRESHOLD):
+def load_gt_box_from_label(image_path):
     """
-    Evaluates a trained YOLOv5 model on the specified dataset split ('train' or 'val').
-
-    Args:
-        model_name (str): The name of the trained model .pt file (including hyperparams).
-        split (str): 'train' or 'val'.
-        iou_threshold (float): IoU threshold for evaluation (default is 0.7).
+    Load the ground truth box from a YOLO-format label file.
+    Returns [x1, y1, x2, y2] or None if label file is missing/invalid.
     """
-    model_path = Path("runs/train") / model_name.replace(".pt", "") / "weights" / "best.pt"
-    model = YOLO(model_path)
+    label_path = Path("dataset/labels/val") / (image_path.stem + ".txt")
 
-    print(f"\n Evaluating '{split}' set with IoU > {iou_threshold:.7f}")
-    # print(f"\n Evaluating '{split}' set with IoU > {iou_threshold:{IOU_THRESHOLD}f}")  --> non so se va bene lo stesso scritto così
-    results = model.val(
-        data    = "ccpd.yaml",
-        split   = split,
-        iou     = iou_threshold,
-        device  = "cpu",
-        name    = f"{model_name.replace('.pt', '')}_{split}_iou{int(iou_threshold*100)}"
-    )
+    if not label_path.exists():
+        print(f"[WARN] No label found for {image_path.name}")
+        return None
 
-    metrics = results.results_dict
+    with open(label_path, "r") as f:
+        lines = f.readlines()
 
-    # Print metrics
-    for k, v in metrics.items():
-        print(f"{k}: {v:.4f}")
+    if not lines:
+        print(f"[WARN] Empty label file for {image_path.name}")
+        return None
 
-    # Save metrics to file
-    out_file = model_name.replace(".pt", f"_{split}_metrics_iou{int(iou_threshold*100)}.txt")
-    with open(out_file, "w") as f:
-        f.write(f"# Evaluation on '{split}' set (IoU > {iou_threshold})\n")
-        for k, v in metrics.items():
-            f.write(f"{k}: {v:.4f}\n")
+    # Assume the first object only
+    try:
+        parts = list(map(float, lines[0].strip().split()))
+        _, x_center, y_center, w, h = parts
+    except Exception:
+        print(f"[WARN] Label parse failed for {image_path.name}")
+        return None
 
-    print(f"Metrics saved to: {out_file}")
+    # Convert from normalized to absolute coordinates
+    img = plt.imread(image_path)
+    img_h, img_w = img.shape[:2]
 
+    cx, cy = x_center * img_w, y_center * img_h
+    bw, bh = w * img_w, h * img_h
+
+    x1, y1 = cx - bw / 2, cy - bh / 2
+    x2, y2 = cx + bw / 2, cy + bh / 2
+
+    return [x1, y1, x2, y2]

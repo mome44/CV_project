@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 from ultralytics import YOLO
 from globals import *
+from utils import *
 
 def get_model_name():
     return f"yolov5_epochs{EPOCHS_TRAIN_Y}_bs{BATCH_SIZE_TRAIN_Y}_lr{LR_INIT_Y}_imgs{IMAGE_SIZE_Y}.pt"
@@ -35,7 +36,7 @@ def train_yolo():
         project = "runs/train",                     # directory in cui salvare gli outputs del training
         name    = model_name.replace(".pt", ""),    # crea una subdir nella cartella del progetto, dove salva i training logs e outputs
         val     = True,                             # run validation qui per creare results.csv e .png
-        plots   = False                              
+        plots   = True                              
     )
 
     model.save(model_name)
@@ -50,20 +51,14 @@ def train_yolo():
 if __name__ == "__main__":
 
     # TRAIN
-    train_model_path = train_yolo()
+    # train_model_path = train_yolo()
 
     run_name = get_run_name()
 
-   
-
-
-    # PLOTS dopo il training
-
-
-
     # VALIDATION dopo il training
     # Carica e usa il modello migliore best.pt --> crea una model instance inizializzata con i trained weights
-    best_model = YOLO(train_model_path)
+    # best_model = YOLO(train_model_path, verbose = False)
+    best_model = YOLO("/Users/michelafuselli/Desktop/Michi/Università/Magistrale/Computer Vision/Project/CV_project/runs/train/yolov5_epochs20_bs8_lr0.001_imgs6402/weights/best.pt", verbose = False)
 
     # Dentro results: mAP@0.5, mAP@0.5:0.95. precision, recall, confusion matrix, curva PR, curva f1, ... --> vengono salvati in runs/detect/val
     results = best_model.val(
@@ -71,30 +66,49 @@ if __name__ == "__main__":
         split   = 'val',
         iou     = IOU_THRESHOLD,
         device  = "cpu",
-        name    = f"{run_name}_VAL_iou{int(IOU_THRESHOLD*100)}"
+        name    = f"{run_name}_VAL_iou{int(IOU_THRESHOLD*100)}",
     )
 
-    # print(results)
-
-    output_dir = Path("runs/detect") / f"{run_name}_VAL_iou{int(IOU_THRESHOLD * 100)}"
+    image_dir = Path("dataset/images/val")
+    output_dir = Path("runs/val") / f"{get_run_name()}_VAL_iou{int(IOU_THRESHOLD * 100)}"
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # PLOTS
-    # Visto che results.box.map restituisce una lista di valori mAP con iou threshold tra 0.5 e 0.95,
-    # è meglio estrarre l'indice esatto a 0.7
-    iou_threshold = IOU_THRESHOLD
-    iou_index = int((iou_threshold - 0.5) / 0.05)  # 0.7 -> index 4
-    iou = results.box.map
-    print(iou)
+    iou_list = []
 
-    plt.figure()
-    plt.bar([f"IoU@{iou_threshold}"], [iou], color="red")
-    plt.title("IoU Curve (mAP at IoU = 0.7)")
-    plt.ylabel("mAP")
-    plt.ylim(0, 1)
-    plt.grid(axis='y')
-    plt.show()
+    # Loop sulle immagini
+    for image_path in sorted(image_dir.glob("*.jpg")):
+        # Predict
+        result = best_model(image_path, verbose = False)[0]
+        predictions = result.boxes.xyxy.cpu().numpy()  # shape: (N, 4)
 
-    # Salva nella stessa dir dove stanno i plots della validation
-    plt.savefig(os.path.join(output_dir, "IoU_curve.png"))
-    plt.close()
+        # Estrazione delle coordinate reali (Ground Truth) in formato: x1_y1_x2_y2_imageid.jpg
+        # name = image_path.stem
+        # try:
+        #   x1, y1, x2, y2 = map(int, name.split("_")[:4])
+        #    real_box = [x1, y1, x2, y2]
+        # except:
+        #    print(f"[WARN] Skipping {name}, filename does not contain GT info")
+        #    continue
+
+        real_box = load_gt_box_from_label(image_path)
+        if real_box is None:
+            continue  # skip image if GT missing or invalid
+
+
+        # Calcola IoU tra ogni box predetta e quella reale
+        for predicted_box in predictions:
+            iou = compute_iou(predicted_box, real_box)
+            iou_list.append(iou)
+
+    # Calcolare la media tra tutti i valori di iou
+    if iou_list:
+        mean_iou = sum(iou_list) / len(iou_list)
+    else:
+        mean_iou = 0.0
+
+    # Salva in .txt
+    txt_path = output_dir / "mean_iou.txt"
+    with open(txt_path, "w") as f:
+        f.write(f"Mean IoU over validation set: {mean_iou:.4f}\n")
+
+    print(f"[INFO] Mean IoU saved to {txt_path}")
