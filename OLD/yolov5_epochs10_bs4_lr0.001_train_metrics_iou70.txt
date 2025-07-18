@@ -1,0 +1,6 @@
+# Evaluation on 'train' set (IoU > 0.7)
+metrics/precision(B): 0.9994
+metrics/recall(B): 0.9997
+metrics/mAP50(B): 0.9950
+metrics/mAP50-95(B): 0.8746
+fitness: 0.8867

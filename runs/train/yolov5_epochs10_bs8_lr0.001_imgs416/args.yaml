@@ -10,10 +10,10 @@ imgsz: 416
 save: true
 save_period: -1
 cache: false
-device: cpu
+device: mps
 workers: 8
 project: runs/train
-name: yolov5_epochs10_bs8_lr0.001_imgs416
+name: yolov5_MODEL_epochs10_bs8_lr0.001_imgs416
 exist_ok: false
 pretrained: true
 optimizer: auto
@@ -33,7 +33,7 @@ multi_scale: false
 overlap_mask: true
 mask_ratio: 4
 dropout: 0.0
-val: true
+val: false
 split: val
 save_json: false
 conf: null
@@ -41,7 +41,7 @@ iou: 0.7
 max_det: 300
 half: false
 dnn: false
-plots: true
+plots: false
 source: null
 vid_stride: 1
 stream_buffer: false
@@ -102,4 +102,4 @@ auto_augment: randaugment
 erasing: 0.4
 cfg: null
 tracker: botsort.yaml
-save_dir: runs/train/yolov5_epochs10_bs8_lr0.001_imgs416
+save_dir: runs/train/yolov5_MODEL_epochs10_bs8_lr0.001_imgs416
