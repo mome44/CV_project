@@ -8,6 +8,8 @@ from data import PlateDataset
 from utils import compute_iou
 from globals import IOU_THRESHOLD
 from tqdm import tqdm
+from torch.utils.data import DataLoader
+from torch.optim import Adam, SGD
 #Hyperparameters combinations
 batch_sizes = [16, 32]
 learning_rates = [0.001, 0.002]
@@ -46,19 +48,18 @@ for bs, lr, wd, ne in combinations:
     #model.head.classification_head = RetinaNetClassificationHead(in_channels, num_anchors, num_classes=2)
 
     #cambiare il dataloader in modo che ce ne sia uno per train validation e test
-    dataset = PlateDataset("dapaset/images", "dataset/labels")
-    train_dataset = PlateDataset("dapaset/images/train", "dapaset/labels/train")
-    val_dataset = PlateDataset("dapaset/images/val", "dapaset/labels/val")
-    test_dataset = PlateDataset("dapaset/images/test", "dapaset/labels/test")
+    
+    train_dataset = PlateDataset("dataset/images/train", "dataset/labels/train")
+    val_dataset = PlateDataset("dataset/images/val", "dataset/labels/val")
+    test_dataset = PlateDataset("dataset/images/test", "dataset/labels/test")
 
 
-    train_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, collate_fn=lambda x: tuple(zip(*x)))
-    val_dataloader = torch.utils.data.DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, collate_fn=lambda x: tuple(zip(*x)))
-    #test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=True, collate_fn=lambda x: tuple(zip(*x)))
+    train_dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, collate_fn=lambda x: tuple(zip(*x)))
+    val_dataloader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, collate_fn=lambda x: tuple(zip(*x)))
+    test_dataloader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=True, collate_fn=lambda x: tuple(zip(*x)))
     #this optimizer uses stochastic gradient descent and has in input the parameters (weights) from 
     #the pretrained model
-    params = model.parameters()
-    optimizer = torch.optim.SGD(params, lr=LR, momentum=0.9, weight_decay=WEIGHT_DECAY)
+    optimizer = Adam(model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
 
     #initialize the device
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
