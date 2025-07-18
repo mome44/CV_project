@@ -6,33 +6,44 @@ from torch.nn.utils.rnn import pack_padded_sequence
 from torch.utils.data import DataLoader
 
 class CNN_CTC_model(nn.Module):
-    def __init__(self, num_classes):
+    def __init__(self, num_char, hidden_size):
         super(CNN_CTC_model, self).__init__()
-
+        self.num_char = num_char
+        self.hidden_size = hidden_size
+        #self.final_feature_width = final_feature_width
+                
         self.features = nn.Sequential(
-            nn.Conv2d(1, 64, kernel_size=3, stride=1, padding=1),  # [B, 64, 48, 144]
+            #1 Because we use grayscale images
+            nn.Conv2d(1, 64, kernel_size=3, stride=1, padding=1),  
             nn.ReLU(),
-            nn.MaxPool2d(2, 2),                                     # [B, 64, 24, 72]
+            nn.MaxPool2d(2, 2),                                     
 
-            nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1), # [B, 128, 24, 72]
+            nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1), 
             nn.ReLU(),
-            nn.MaxPool2d(2, 2),                                     # [B, 128, 12, 36]
+            nn.Dropout(p=0.2),
+            nn.MaxPool2d(2, 2),                                     
 
-            nn.Conv2d(128, 256, kernel_size=3, stride=1, padding=1),# [B, 256, 12, 36]
+            nn.Conv2d(128, self.hidden_size, kernel_size=3, stride=1, padding=1),
             nn.ReLU()
-        )
+        )  
 
-        # Riduzione canali → hidden features per carattere
-        self.linear = nn.Linear(256 * 12, 256)  # 256×12 = concatenazione H dim
-        self.classifier = nn.Linear(256, num_classes)
+        #two linear layers to do the final classification
+        self.linear = nn.Linear(self.hidden_size * 12, 256)  # 256×12 = concatenazione H dim
+        self.dropout = nn.Dropout(p=0.3)
+        self.classifier = nn.Linear(self.hidden_size, self.num_char)
 
     def forward(self, x):
-        # x: [B, 1, 48, 144]
-        x = self.features(x)  # [B, 256, 12, 36]
+        #the input size is:  Batch, 1, 48 x 144
+        x = self.features(x)   #output size: Batch, 256, 12x36
 
-        x = x.permute(3, 0, 1, 2)  # [W=36, B, C=256, H=12]
-        x = x.flatten(2)          # [T=36, B, 256×12]
-        x = self.linear(x)        # [T, B, 256]
-        x = self.classifier(x)    # [T, B, num_classes]
+        #since we have 4 elements, the CTC wants the width first so we have to 
+        #put it into the first position
+        x = x.permute(3, 0, 1, 2)  # 36, batch, 256, 12 
+        #the width so the frames must be more than the number of total characters that
+        #we want to encode, so T = width = 36
+        x = x.flatten(2)          # 36, batch , 256×12]
+        x = self.linear(x)
+        x = self.dropout(x)           # 36, batch, 256
+        x = self.classifier(x)    # 36, batch, num_char
 
-        return x  # logits per CTC
+        return x  #returns a tensor of size [numchar] for each one of the 36 positions
