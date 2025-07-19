@@ -51,14 +51,14 @@ def train_yolo():
 if __name__ == "__main__":
 
     # TRAIN
-    # train_model_path = train_yolo()
+    train_model_path = train_yolo()
 
     run_name = get_run_name()
 
     # VALIDATION dopo il training
     # Carica e usa il modello migliore best.pt --> crea una model instance inizializzata con i trained weights
-    # best_model = YOLO(train_model_path, verbose = False)
-    best_model = YOLO("/Users/michelafuselli/Desktop/Michi/Università/Magistrale/Computer Vision/Project/CV_project/runs/train/yolov5_epochs20_bs8_lr0.001_imgs6402/weights/best.pt", verbose = False)
+    best_model = YOLO(train_model_path, verbose = False)
+    # best_model = YOLO("/Users/michelafuselli/Desktop/Michi/Università/Magistrale/Computer Vision/Project/CV_project/runs/train/yolov5_epochs20_bs8_lr0.001_imgs6402/weights/best.pt", verbose = False)
 
     # Dentro results: mAP@0.5, mAP@0.5:0.95. precision, recall, confusion matrix, curva PR, curva f1, ... --> vengono salvati in runs/detect/val
     results = best_model.val(
@@ -78,7 +78,7 @@ if __name__ == "__main__":
     # Loop sulle immagini
     for image_path in sorted(image_dir.glob("*.jpg")):
         # Predict
-        result = best_model(image_path, verbose = False)[0]
+        result = best_model(image_path, max_det=5, verbose = False)[0]
         predictions = result.boxes.xyxy.cpu().numpy()  # shape: (N, 4)
 
         # Estrazione delle coordinate reali (Ground Truth) in formato: x1_y1_x2_y2_imageid.jpg
@@ -90,10 +90,9 @@ if __name__ == "__main__":
         #    print(f"[WARN] Skipping {name}, filename does not contain GT info")
         #    continue
 
-        real_box = load_gt_box_from_label(image_path)
+        real_box = load_gt_box_from_label_validation(image_path)
         if real_box is None:
-            continue  # skip image if GT missing or invalid
-
+            continue  # skip immagine se GT non c'è o è invalid
 
         # Calcola IoU tra ogni box predetta e quella reale
         for predicted_box in predictions:
