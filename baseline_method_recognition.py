@@ -6,13 +6,22 @@ import matplotlib.pyplot as plt
 from itertools import product
 from data import RecognitionDataset
 from network import CNN_CTC_model
+from torch.utils.data import DataLoader
+from torch.optim import Adam, SGD
+from globals import *
+from utils import *
+
+
 #Hyperparameters combination
-batch_sizes = [64, 32]
-learning_rates = [0.001, 0.002]
+batch_sizes = [32]
+learning_rates = [0.001]
+weight_decays = [1e-4, 5e-4]
+epochs = [40, 60]
 
-weight_decays = [0.0001, 0.0005]
-epochs = [10, 20]
+CHAR_LIST = sorted(set(PROVINCES+ALPHABETS+ADS))
+PLATE_LENGTH = 8
 
+NUM_CHAR = len(CHAR_LIST) + 1 #since we include the blank character
 
 combinations = product(batch_sizes, learning_rates, weight_decays, epochs)
 
@@ -25,24 +34,24 @@ for bs, lr, wd, ne in combinations:
     WEIGHT_DECAY = wd
     NUM_EPOCHS = ne
 
-    SAVE_NAME = f"n_epochs_{NUM_EPOCHS}_bs_{BATCH_SIZE}_LR_{LR}_wd_{WEIGHT_DECAY}"
+    SAVE_NAME = f"n_epochs_{NUM_EPOCHS}_bs_{BATCH_SIZE}_LR_{LR}_wd_{WEIGHT_DECAY}_a"
 
     print(f"training with {SAVE_NAME}")
     
-    model = CNN_CTC_model(7)
+    model = CNN_CTC_model(num_char=NUM_CHAR, hidden_size=256)
     ctc_loss = nn.CTCLoss(blank=0) 
     train_dataset = RecognitionDataset("dataset/crops/train", "dataset/labels_pdlpr/train")
     val_dataset = RecognitionDataset("dataset/crops/val", "dataset/labels_pdlpr/val")
     test_dataset = RecognitionDataset("dataset/crops/test", "dataset/labels_pdlpr/test")
 
 
-    train_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, collate_fn=lambda x: tuple(zip(*x)))
-    val_dataloader = torch.utils.data.DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=True, collate_fn=lambda x: tuple(zip(*x)))
-    test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=True, collate_fn=lambda x: tuple(zip(*x)))
+    train_dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
+    val_dataloader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=True)
+    test_dataloader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=True)
     #this optimizer uses stochastic gradient descent and has in input the parameters (weights) from 
     #the pretrained model
-    params = model.parameters()
-    optimizer = torch.optim.SGD(params, lr=LR, momentum=0.9, weight_decay=WEIGHT_DECAY)
+    optimizer = Adam(model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
+    #optimizer = SGD(model.parameters(), lr=LR, momentum=0.9, weight_decay=WEIGHT_DECAY)
 
     #initialize the device
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -51,180 +60,255 @@ for bs, lr, wd, ne in combinations:
     accuracy_val=[]
     accuracy_train=[]
     total_train_loss=[]
+    char_accuracy_train =[]
+    char_accuracy_val =[]
+
     epsilon = 1e-6
     #TRAIN LOOP we are doing fine tuning on the task of recognizing plate
     for e in range(NUM_EPOCHS):
         model.train()
         train_loss= 0.0
-        val_loss = 0.0
         train_acc = []
         val_acc = []
-
+        train_char_acc =[]
+        val_char_acc = []
+        B_size = 0
         i=0
         #does the for loop for all the items in the same batch
-        for images, labels, target_lengths in train_dataloader:
-            print(f"Batch {i + 1}/{len(train_dataloader)}")
+        for images, labels in train_dataloader:
+            #print(f"Batch {i + 1}/{len(train_dataloader)}")
             images = [img.to(device) for img in images]
             labels = [lab.to(device) for lab in labels]
-            target_lengths = torch.tensor(target_lengths, dtype=torch.long).to(device)
 
             # Stack per batch processing
-            images = torch.stack(images)        # [B, 1, 48, 144]
-            labels = torch.stack(labels)        # [B, 7]
-            labels_flat = labels.view(-1)  
-            logits = model(images)                       # [T, B, C]
-            log_probs = F.log_softmax(logits, dim=2)
-            T = logits.size(0)
-            B = logits.size(1)
+            images = torch.stack(images)        
+            labels = torch.stack(labels)
 
-            input_lengths = torch.full((B,), T, dtype=torch.long).to(device)
-            target_lengths = torch.full((B,), 8, dtype=torch.long).to(device)
+            #Ctc loss expects a simple list not a 2 dimensional tensor, so all the batch
+            #index are flattened into one single list
+            flat_labels_list = labels.view(-1)
+            #we get the output of the models and apply softmax to turn it into probability 
+            output_logits = model(images)                      
+            output_probabilities = F.log_softmax(output_logits, dim=2)
+            #the output of the model are T vectors for the batch size
+            T = output_logits.size(0)
+            #get the current batch size
+            B_size = images.size(0)
+            #creates a tensor the length of the batch size filled with the dimention of the input
+            #and the dimension of the output, since ctc requires the lengths because it uses one big
+            #vector
+            input_lengths = torch.full((B_size,), T, dtype=torch.long).to(device)
+            target_lengths = torch.full((B_size,), PLATE_LENGTH, dtype=torch.long).to(device)
 
-            # Loss
-            loss = ctc_loss(log_probs, labels_flat, input_lengths, target_lengths)
+            #CTC loss
+            loss = ctc_loss(output_probabilities, flat_labels_list, input_lengths, target_lengths)
 
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
 
-            #total_train_loss += loss
+            train_loss += loss.item()
 
-            # Greedy decoding per targa intera
-            preds = torch.argmax(log_probs, dim=2).transpose(0, 1)  # [B, T]
-            decoded_predictions = []
-            for seq in preds:
-                decoded = []
-                prev = 0
-                for idx in seq:
-                    idx = idx.item()
-                    if idx != 0 and idx != prev:
-                        decoded.append(idx)
-                    prev = idx
-                decoded_predictions.append(decoded)
-
-            # Valutazione targa intera
-            for pred_seq, label in zip(decoded_predictions, labels):
-                if pred_seq == label.tolist():
+            #we take the index of words with the highest probabilities
+            predictions = torch.argmax(output_probabilities, dim=2)
+            predictions= predictions.transpose(0, 1)
+            final_predictions = []
+            #iterate for each prediction array in the batch
+            for prediction in predictions:
+                reduced = []
+                before = 0
+                for t_index in prediction:
+                    t_index = t_index.item()
+                    if t_index != 0 and t_index != before:
+                        #append the index only if it is not zero and it is different than before
+                        reduced.append(t_index)
+                    before = t_index
+                final_predictions.append(reduced)
+            
+            
+            
+            #computing the metrics for the plates
+            for pred_idx_list, label in zip(final_predictions, labels):
+                label_list = label.tolist()
+                #checking if the two list are equal
+                if pred_idx_list == label_list:
                     train_acc.append(1)
                 else:
-                    train_acc.append(0)                    
+                    train_acc.append(0)
+                char_correct = 0
+                #number of same characters
+                for pred_idx, label_idx in zip(pred_idx_list, label):
+                    if pred_idx == label_idx:
+                        char_correct += 1
+                mean_char = char_correct/PLATE_LENGTH
+                train_char_acc.append(mean_char)
             i+=1
             
-        #compute the mean of the iou training score
+        #compute the mean of the full and character accuracy for training
         mean_train_acc = sum(train_acc)/len(train_acc)
+        mean_train_char_acc = sum(train_char_acc)/len(train_char_acc)
+        train_loss = train_loss/B_size
+
         accuracy_train.append(mean_train_acc)
+        char_accuracy_train.append(mean_train_char_acc)
+        total_train_loss.append(train_loss)
 
         j=0
         #Validation phase
         model.eval()
         with torch.no_grad():
-            for images, labels, target_lengths in val_dataloader:
-                print(f"Batch {j + 1}/{len(val_dataloader)}")
+            for images, labels in val_dataloader:
+                #print(f"Batch {j + 1}/{len(val_dataloader)}")
                 images = [img.to(device) for img in images]
                 labels = [lab.to(device) for lab in labels]
-                target_lengths = torch.tensor(target_lengths, dtype=torch.long).to(device)
-    
-                # Stack per batch processing
-                images = torch.stack(images)        # [B, 1, 48, 144]
-                labels = torch.stack(labels)        # [B, 7]
-                labels_flat = labels.view(-1)  
-                logits = model(images)                       # [T, B, C]
-                log_probs = F.log_softmax(logits, dim=2)
-                T = logits.size(0)
-                B = logits.size(1)
-    
-                input_lengths = torch.full((B,), T, dtype=torch.long).to(device)
-                target_lengths = torch.full((B,), 8, dtype=torch.long).to(device)
-              
 
-                preds = torch.argmax(log_probs, dim=2).transpose(0, 1)  # [B, T]
-                decoded_predictions = []
-                for seq in preds:
-                    decoded = []
-                    prev = 0
-                    for idx in seq:
-                        idx = idx.item()
-                        if idx != 0 and idx != prev:
-                            decoded.append(idx)
-                        prev = idx
-                    decoded_predictions.append(decoded)
-                for pred_seq, label_tensor in zip(decoded_predictions, labels):
-                    if pred_seq == label_tensor.tolist():
+                images = torch.stack(images)         
+                labels = torch.stack(labels)
+
+                flat_labels_list = labels.view(-1)  
+                 
+                output_logits = model(images)                      
+                output_probabilities = F.log_softmax(output_logits, dim=2)
+                
+               
+                predictions = torch.argmax(output_probabilities, dim=2)
+                predictions= predictions.transpose(0, 1)
+                final_predictions = []
+               
+                for prediction in predictions:
+                    reduced = []
+                    before = 0
+                    for t_index in prediction:
+                        t_index = t_index.item()
+                        if t_index != 0 and t_index != before:
+                            reduced.append(t_index)
+                        before = t_index
+                    final_predictions.append(reduced)
+
+                #computing the metrics for the plates
+                for pred_idx_list, label in zip(final_predictions, labels):
+                    label_list = label.tolist()
+                    #checking if the two list are equal
+                    if pred_idx_list == label_list:
                         val_acc.append(1)
                     else:
                         val_acc.append(0)
+                    char_correct = 0
+                    #number of same characters
+                    for pred_idx, label_idx in zip(pred_idx_list, label):
+                        if pred_idx == label_idx:
+                            char_correct += 1
+                    mean_char = char_correct/PLATE_LENGTH
+                    val_char_acc.append(mean_char)
                 j+=1
 
         #compute the mean of the iou validation score
         mean_val_acc = sum(val_acc)/len(val_acc)
+        mean_val_char_acc = sum(val_char_acc)/len(val_char_acc)
+
         accuracy_val.append(mean_val_acc)
-        
-        print(f"Epoch {e +1}/{NUM_EPOCHS} - train loss: {train_loss/len(train_dataloader):.4f} - val acc: {mean_val_acc}" )
+        char_accuracy_val.append(mean_val_char_acc)
+
+        print(f"Epoch {e +1}/{NUM_EPOCHS} - train loss: {train_loss} - train acc: {mean_train_acc} - train char acc: {mean_train_char_acc} - val acc: {mean_val_acc} --  val char acc: {mean_val_char_acc}" )
 
     #Saving the model
-    torch.save(model.state_dict(), f"models/next_method-{SAVE_NAME}.pth")
+    torch.save(model.state_dict(), f"models/CNNCTC-{SAVE_NAME}.pth")
 
     #Plotting the figure for the train and validation
     plt.figure(figsize=(8, 5))
-    plt.plot(NUM_EPOCHS, accuracy_train, label="train acc", marker='o')
-    plt.plot(NUM_EPOCHS, accuracy_val, label="validation acc", marker='s')
+    plt.plot(range(1, NUM_EPOCHS + 1), accuracy_train, label="train acc", marker='o')
+    plt.plot(range(1, NUM_EPOCHS + 1), accuracy_val, label="validation acc", marker='s')
     plt.xlabel("epoch")
     plt.ylabel("accuracy")
-    plt.title("Train and validation iou per epoch")
+    plt.title("Train and validation plate accuracy per epoch")
     plt.grid(True)
     plt.legend()
     plt.tight_layout()
-    plt.show()
-    plt.savefig(f"imgs/train_validation_next_method-{SAVE_NAME}.png")
+    #plt.show()
+    plt.savefig(f"images/train_validation_CNNCTC-{SAVE_NAME}.png")
+
+    #Plotting the figure for the train and validation
+    plt.figure(figsize=(8, 5))
+    plt.plot(range(1, NUM_EPOCHS + 1), char_accuracy_train, label="char train acc", marker='o')
+    plt.plot(range(1, NUM_EPOCHS + 1), char_accuracy_val, label="char validation acc", marker='s')
+    plt.xlabel("epoch")
+    plt.ylabel("accuracy")
+    plt.title("Train and validation character accuracy per epoch")
+    plt.grid(True)
+    plt.legend()
+    plt.tight_layout()
+    #plt.show()
+    plt.savefig(f"images/char_train_validation_CNNCTC-{SAVE_NAME}.png")
 
     #getting the last iou value for train and validation
     final_train_acc = accuracy_train[-1]
     final_val_acc = accuracy_val[-1]
 
-    with open(f"results/next_method-{SAVE_NAME}.txt", "w") as f:
+    final_char_train_acc = char_accuracy_train[-1]
+    final_char_val_acc = char_accuracy_val[-1]
+
+    with open(f"results/CNNCTC-{SAVE_NAME}.txt", "w") as f:
         f.write(f"Final train accuracy: {final_train_acc:.4f}\n")
         f.write(f"Final validation accuracy: {final_val_acc:.4f}\n")
-
-        
+        f.write(f"Final character train accuracy: {final_char_train_acc:.4f}\n")
+        f.write(f"Final character validation accuracy: {final_char_val_acc:.4f}\n")
 
     #TESTING PHASE
-
-    model.load_state_dict(torch.load(f"models/next_method-{SAVE_NAME}.pth"))
+    model.load_state_dict(torch.load(f"models/CNNCTC-{SAVE_NAME}.pth"))
 
     model.eval()
-    acc_test = []
+    test_acc = []
+    char_test_acc = []
     
     #here we just loop throught the test data and compute the Iou score
     with torch.no_grad():
         for images, labels in test_dataloader:
-            images = images.to(device)
-            labels = labels.to(device)
+            images = [img.to(device) for img in images]
+            labels = [lab.to(device) for lab in labels]
+            images = torch.stack(images)         
+            labels = torch.stack(labels)
+            flat_labels_list = labels.view(-1)  
+             
+            output_logits = model(images)                      
+            output_probabilities = F.log_softmax(output_logits, dim=2)
+            
+           
+            predictions = torch.argmax(output_probabilities, dim=2)
+            predictions= predictions.transpose(0, 1)
+            final_predictions = []
+            for prediction in predictions:
+                    reduced = []
+                    before = 0
+                    for t_index in prediction:
+                        t_index = t_index.item()
+                        if t_index != 0 and t_index != before:
+                            reduced.append(t_index)
+                        before = t_index
+                    final_predictions.append(reduced)
 
-            logits = model(images)  # [T, B, C]
-            log_probs = F.log_softmax(logits, dim=2)
-            preds = torch.argmax(log_probs, dim=2).transpose(0, 1)  # [B, T]
-
-            decoded_predictions = []
-            for seq in preds:
-                decoded = []
-                prev = 0
-                for idx in seq:
-                    idx = idx.item()
-                    if idx != 0 and idx != prev:
-                        decoded.append(idx)
-                    prev = idx
-                decoded_predictions.append(decoded)
-
-            for pred_seq, label_tensor in zip(decoded_predictions, labels):
-                if pred_seq == label_tensor.tolist():
-                    acc_test.append(1)
+            #computing the metrics for the plates
+            for pred_idx_list, label in zip(final_predictions, labels):
+                label_list = label.tolist()
+                #checking if the two list are equal
+                if pred_idx_list == label_list:
+                    test_acc.append(1)
                 else:
-                    acc_test.append(0)                
+                    test_acc.append(0)
+                char_correct = 0
+                #number of same characters
+                for pred_idx, label_idx in zip(pred_idx_list, label):
+                    if pred_idx == label_idx:
+                        char_correct += 1
+                mean_char = char_correct/PLATE_LENGTH
+                char_test_acc.append(mean_char)               
         
-    mean_acc = sum(acc_test) / len(acc_test)
+    mean_acc = sum(test_acc) / len(test_acc)
+    mean_char_acc = sum(char_test_acc)/len(char_test_acc)
     print(f"Test result accuracy: {mean_acc:.4f}")
+    print(f"Test result char accuracy: {mean_char_acc:.4f}")
 
     #saving the iou result of the training, validation (last step) and testing
-    with open(f"results/next_method-test-{SAVE_NAME}.txt", "w") as f:
-        f.write(f"Final testing IoU: {mean_acc:.4f}\n")
+    with open(f"results/CNNCTC-test-{SAVE_NAME}.txt", "w") as f:
+        f.write(f"Final testing accuracy: {mean_acc:.4f}\n")
+        f.write(f"Final testing character accuracy: {mean_char_acc:.4f}\n")
   

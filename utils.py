@@ -4,7 +4,7 @@ from pathlib import Path
 from PIL import Image
 import matplotlib.pyplot as plt
 from ultralytics import YOLO
-from globals import IOU_THRESHOLD
+from globals import *
 
 
 base_dir = Path("dataset")
@@ -53,7 +53,7 @@ def load_gt_box_from_label_validation(image_path):
     """
     Load the ground truth box from a YOLO-format label file.
     Returns [x1, y1, x2, y2] or None if label file is missing/invalid.
-    """
+   
     label_path = Path("dataset/labels/val") / (image_path.stem + ".txt")
 
     if not label_path.exists():
