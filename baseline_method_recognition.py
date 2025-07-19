@@ -13,10 +13,10 @@ from utils import *
 
 
 #Hyperparameters combination
-batch_sizes = [64, 128]
+batch_sizes = [32]
 learning_rates = [0.001]
 weight_decays = [1e-4, 5e-4]
-epochs = [40]
+epochs = [40, 60]
 
 CHAR_LIST = sorted(set(PROVINCES+ALPHABETS+ADS))
 PLATE_LENGTH = 8

@@ -153,15 +153,18 @@ def plot_iou(model_name):
     plt.legend()
     plt.savefig(model_name.replace(".pt", "_mAP50-95(B).png"))
     plt.close()
+
+
+
 """
 
 
 
 def load_gt_box_from_label(image_path):
-    """
+   
     Load the ground truth box from a YOLO-format label file.
     Returns [x1, y1, x2, y2] or None if label file is missing/invalid.
-    """
+   
     label_path = Path("dataset/labels/val") / (image_path.stem + ".txt")
 
     if not label_path.exists():
@@ -194,3 +197,4 @@ def load_gt_box_from_label(image_path):
     x2, y2 = cx + bw / 2, cy + bh / 2
 
     return [x1, y1, x2, y2]
+"""
