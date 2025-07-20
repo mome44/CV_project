@@ -38,7 +38,10 @@ _, _, test_dataloader = CCPDDataset.get_dataloaders(base_dir="./dataset", batch_
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 #TESTING PHASE
-model.load_state_dict(torch.load(f"models/CNNCTC-{SAVE_NAME}.pth"))
+if os.path.exists(f"models/CNNCTC-{SAVE_NAME}.pth"):
+    model.load_state_dict(torch.load(f"models/CNNCTC-{SAVE_NAME}.pth"))
+else:
+    print("model not found. Please train the model first")
 model.eval()
 test_acc = []
 char_test_acc = []

@@ -139,7 +139,7 @@ if __name__ == "__main__":
         
 
     with open(diff_results_txt, "a") as f:
-        f.write(f"\n AVERAGE IoU over {num_iou} predicitons: {avg_iou:0.4f}")
+        f.write(f"\n AVERAGE IoU over {num_iou} predictions: {avg_iou:0.4f}")
         f.write(f"\n IoU pass rate (>= 0.7) {pass_rate:0.2f}")
 
     print(f"\n AVERAGE IoU over {num_iou} predicitons: {avg_iou:0.4f}")
