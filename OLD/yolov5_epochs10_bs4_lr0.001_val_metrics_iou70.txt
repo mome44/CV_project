@@ -1,6 +1,0 @@
-# Evaluation on 'val' set (IoU > 0.7)
-metrics/precision(B): 0.9816
-metrics/recall(B): 0.9770
-metrics/mAP50(B): 0.9928
-metrics/mAP50-95(B): 0.6427
-fitness: 0.6777
