@@ -173,7 +173,7 @@ for bs, lr, wd, ne in combinations:
     
                 j+=1
 
-        #compute the mean of the iou validation score
+        #compute the mean of the accuracy validation score
         mean_val_acc = sum(val_acc)/len(val_acc)
         mean_val_char_acc = sum(val_char_acc)/len(val_char_acc)
 
@@ -196,7 +196,7 @@ for bs, lr, wd, ne in combinations:
     plt.legend()
     plt.tight_layout()
     #plt.show()
-    plt.savefig(f"images/train_validation_CNNCTC-{SAVE_NAME}.png")
+    plt.savefig(f"metrics_images/train_validation_CNNCTC-{SAVE_NAME}.png")
 
     #Plotting the figure for the train and validation
     plt.figure(figsize=(8, 5))
@@ -209,9 +209,9 @@ for bs, lr, wd, ne in combinations:
     plt.legend()
     plt.tight_layout()
     #plt.show()
-    plt.savefig(f"images/char_train_validation_CNNCTC-{SAVE_NAME}.png")
+    plt.savefig(f"metrics_images/char_train_validation_CNNCTC-{SAVE_NAME}.png")
 
-    #getting the last iou value for train and validation
+    #getting the last accuracy value for train and validation
     final_train_acc = accuracy_train[-1]
     final_val_acc = accuracy_val[-1]
 

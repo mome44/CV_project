@@ -31,7 +31,7 @@ class EncoderBlock(nn.Module):
         x = self.norm(x + x_in)  # residual + norm
         return x
 
-# Encoder (3 blocchi)
+# Encoder (3 blocks)
 class PDLPR_Encoder(nn.Module):
     def __init__(self, dim=512, n_heads=8, depth=3):
         super().__init__()
