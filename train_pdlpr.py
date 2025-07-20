@@ -210,6 +210,13 @@ def train(model_parts, evaluator, train_loader, val_loader, char_idx, idx_char, 
     print(f"Loss: {total_loss / len(train_loader):.4f}")
     evaluator.print()
 
+    with open(f"results/PDLPR-{NUM_EPOCHS}_{LR}_{BATCH_SIZE}.txt", "w") as f:
+        f.write(f"Final train accuracy: {metrics["seq_accuracy"]:.4f}\n")
+        f.write(f"Final validation accuracy: {val_metrics["seq_accuracy"]:.4f}\n")
+        f.write(f"Final character train accuracy: {metrics["char_accuracy"]:.4f}\n")
+        f.write(f"Final character validation accuracy: {val_metrics["char_accuracy"]:.4f}\n")
+    print(f"results saved in results/PDLPR-{NUM_EPOCHS}_{LR}_{BATCH_SIZE}.txt")
+
     # plot loss over epochs
     epochs = range(1, len(train_losses)+1)
     plt.figure()
