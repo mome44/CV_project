@@ -61,7 +61,7 @@ for split in splits:
             alphabet_char = ALPHABETS[alphabet_id]
             plate = province_char + alphabet_char
 
-            for i in range(2, 7):
+            for i in range(2, 8):
                 #for the remaining 5 characters we do the mapping from the ADS
                 ads_index = int(character_id_list[i])
                 plate += ADS[ads_index]

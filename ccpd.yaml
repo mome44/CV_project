@@ -6,27 +6,10 @@ path: dataset
 # Relative paths to training and validation image folders
 train: images/train
 val: images/val
+test: images/test
 
 # Number of classes
 nc: 1
 
 # Class names (just one: license plate)
 names: ['license_plate']
-
-
-# Place it in the root of your YOLOv5 folder (or wherever you're running the training script from).
-# 
-# Why You Need This
-# When you run:
-# 
-# python train.py --data data/ccpd.yaml --weights yolov5s.pt ...
-# 
-# YOLOv5 reads:
-# 
-# train: → to load training images and labels
-# 
-# val: → for validation
-# 
-# nc: → to build a detection head with 1 output class
-# 
-# names: → to label your class predictions
