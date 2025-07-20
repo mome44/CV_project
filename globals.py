@@ -18,5 +18,7 @@ ADS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'J', 'K', 'L', 'M', 'N', 'P', 'Q'
 CHAR_LIST = sorted(set(PROVINCES+ALPHABETS+ADS))
 
 CHAR_IDX = {}
+IDX_CHAR = {}
 for idx, char in enumerate(CHAR_LIST):
     CHAR_IDX[char] = idx + 1
+    IDX_CHAR[idx] = char

@@ -42,18 +42,14 @@ for bs, lr, wd, ne in combinations:
     ctc_loss = nn.CTCLoss(blank=0) 
 
     preprocess = transforms.Compose([
-            transforms.Grayscale(),              # converte in 1 canale
-            transforms.Resize((48, 144)),       # adatta a H=48, W=144
-            transforms.ToTensor(),              # [C, H, W]
-            transforms.Normalize((0.5,), (0.5,))
-        ])
+        transforms.Grayscale(),              # converte in 1 canale
+        transforms.Resize((48, 144)),       # adatta a H=48, W=144
+        transforms.ToTensor(),              # [C, H, W]
+        transforms.Normalize((0.5,), (0.5,))
+    ])
     
     
-    train_dataloader, val_dataloader, test_dataloader = CCPDDataset.get_dataloaders(
-        base_dir="./dataset",
-        batch_size=BATCH_SIZE,
-        transform=preprocess
-    )
+    train_dataloader, val_dataloader, test_dataloader = CCPDDataset.get_dataloaders(base_dir="./dataset", batch_size=BATCH_SIZE, transform=preprocess)
      #this optimizer uses stochastic gradient descent and has in input the parameters (weights) from 
     #the pretrained model
     optimizer = Adam(model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
@@ -83,7 +79,7 @@ for bs, lr, wd, ne in combinations:
         i=0
         #does the for loop for all the items in the same batch
         for batch in train_dataloader:
-            print(f"Batch {i + 1}/{len(train_dataloader)}")
+            #print(f"Batch {i + 1}/{len(train_dataloader)}")
             images = batch["cropped_image"]
             labels = batch["pdlpr_plate_idx"]
             
@@ -149,7 +145,7 @@ for bs, lr, wd, ne in combinations:
         model.eval()
         with torch.no_grad():
             for batch in val_dataloader:
-                print(f"Batch {j + 1}/{len(val_dataloader)}")
+                #print(f"Batch {j + 1}/{len(val_dataloader)}")
                 images = batch["cropped_image"]
                 labels = batch["pdlpr_plate_idx"]
                 
@@ -228,46 +224,4 @@ for bs, lr, wd, ne in combinations:
         f.write(f"Final character train accuracy: {final_char_train_acc:.4f}\n")
         f.write(f"Final character validation accuracy: {final_char_val_acc:.4f}\n")
 
-    #TESTING PHASE
-    model.load_state_dict(torch.load(f"models/CNNCTC-{SAVE_NAME}.pth"))
-
-    model.eval()
-    test_acc = []
-    char_test_acc = []
-    
-    evaluator = Evaluator()
-    #here we just loop throught the test data and compute the Iou score
-    with torch.no_grad():
-        for batch in test_dataloader:
-            images = batch["cropped_image"]
-            labels = batch["pdlpr_plate_idx"]
-
-            images = [img.to(device) for img in images]
-            labels = [lab.to(device) for lab in labels]
-            images = torch.stack(images)         
-            labels = torch.stack(labels)
-            flat_labels_list = labels.view(-1)  
-             
-            output_logits = model(images)                      
-            output_probabilities = F.log_softmax(output_logits, dim=2)
-            evaluator.reset()
-            evaluator.update_baseline(output_logits, labels)
-
-            metrics = evaluator.compute()
-
-            #metrics for the whole batch
-            mean_batch_test_char_acc = metrics["char_accuracy"]
-            mean_batch_test_acc = metrics["seq_accuracy"]
-            test_acc.append(mean_batch_test_acc)
-            char_test_acc.append(mean_batch_test_char_acc)
-
-    mean_acc = sum(test_acc) / len(test_acc)
-    mean_char_acc = sum(char_test_acc)/len(char_test_acc)
-    print(f"Test result accuracy: {mean_acc:.4f}")
-    print(f"Test result char accuracy: {mean_char_acc:.4f}")
-
-    #saving the iou result of the training, validation (last step) and testing
-    with open(f"results/CNNCTC-test-{SAVE_NAME}.txt", "w") as f:
-        f.write(f"Final testing accuracy: {mean_acc:.4f}\n")
-        f.write(f"Final testing character accuracy: {mean_char_acc:.4f}\n")
   

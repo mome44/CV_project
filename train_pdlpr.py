@@ -124,7 +124,7 @@ def train(model_parts, evaluator, train_loader, char2idx, idx2char, num_epochs, 
     train_lev = []
     
     for epoch in range(num_epochs):
-        evaluator = Evaluator(idx2char)
+        evaluator = Evaluator(idx2char = idx2char)
     
         loop = tqdm(train_loader, desc=f"Epoch {epoch+1}/{num_epochs}")
         for batch in loop:
