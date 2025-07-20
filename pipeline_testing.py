@@ -128,13 +128,6 @@ transform = transforms.Compose([
     transforms.ToTensor(),
     transforms.Normalize(mean=[0.5]*3, std=[0.5]*3)
 ])
-# Load data
-dataset = CCPDDataset(base_dir="dataset", transform=transform)
-_, _, test_loader = CCPDDataset.get_dataloaders(
-    base_dir="./dataset",
-    batch_size=16,
-    transform=transform
-)
 
 # STARTING TESTING
 # applying transformations to the image
