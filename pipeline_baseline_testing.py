@@ -1,4 +1,3 @@
-from ultralytics import YOLO
 from pathlib import Path
 import torch
 import os
@@ -9,57 +8,22 @@ from torchvision.transforms.functional import to_pil_image
 from globals import *
 from utils import *
 from network import CNN_CTC_model
-from ultralytics import YOLO
 import matplotlib.pyplot as plt
 from data import CCPDDataset
+from tqdm import tqdm
 
-
-def crop_image_yolo(yolo_model, image):
-    yolo_results = yolo_model(image)[0]
-    detection = yolo_results.boxes.xyxy[0]
-    print(detection)
-    # Se non ci sono targhe rilevate
-    if detection.shape[0] == 0:
-        return []
-
-    x1, y1, x2, y2 = detection.tolist()
-    x1, y1, x2, y2 = map(int, detection)
-    
-    cropped_img = image.crop((x1, y1, x2, y2))
-
-    plt.imshow(cropped_img)
-    plt.title("Targa rilevata (crop YOLO)")
-    plt.axis("off")
-    plt.show()
-
-    return cropped_img
-    
-    ##code to convert to plate tensor
-    #with torch.no_grad():
-    #    logits = pdlpr_model(plate_tensor)
-    #    output_probabilities = F.log_softmax(logits, dim=2)
-    #    predictions = torch.argmax(output_probabilities, dim=2)
-    #    pred_text = index_to_target(logits)
-    #
-    #return predicted_plate
-
-#def baseline_pipeline_prediction(cnnctc_model, image_path):
-#    return predicted_plate
-
-# loading yolo model
-yolo_model = YOLO("runs/train/yolov5_epochs20_bs8_lr0.001_imgs640/weights/best.pt")
-
-
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-evaluator = Evaluator()
 
 CHAR_LIST = sorted(set(PROVINCES+ALPHABETS+ADS))
 PLATE_LENGTH = 8
 
+for idx, char in enumerate(CHAR_LIST):
+    CHAR_IDX[char] = idx + 1  # start from 1
+    IDX_CHAR[idx + 1] = char
+IDX_CHAR[0] = '_'  # blank character for CTC
+
 NUM_CHAR = len(CHAR_LIST) + 1 #since we include the blank character
 
-BATCH_SIZE = 36
+BATCH_SIZE = 32
 LR = 0.001
 WEIGHT_DECAY = 0.0001
 NUM_EPOCHS = 60
@@ -77,37 +41,90 @@ preprocess = transforms.Compose([
 preprocess_dataset = transforms.Compose([                   
     transforms.ToTensor()
 ])
-dataloader, _, _= CCPDDataset.get_dataloaders(base_dir="./dataset", batch_size=1, transform=preprocess_dataset)
-
+ds = CCPDDataset(base_dir="./dataset", transform=preprocess_dataset)
+ds = ds.get_dataset("train")
+list_image_paths = ds.get_image_names()
+print(f"models/CNNCTC-{SAVE_NAME}_a.pth")
 # load pre trained model 
 if os.path.exists(f"models/CNNCTC-{SAVE_NAME}.pth"):
     cnn_ctc_model.load_state_dict(torch.load(f"models/CNNCTC-{SAVE_NAME}.pth"))
 else:
     print("model not found. Please train the model first")
 
-
-
 # crop images with YOLO
 base_dir = Path("dataset")
-image_paths = Path("dataset/images/train")
+image_paths = Path("dataset/images/test")
 
-evaluator = Evaluator()
-i = 0
-for item in dataloader:
+evaluator = Evaluator(idx2char=IDX_CHAR)
+cnn_ctc_model.eval()
+i=0
+for image_path in image_paths.glob("*.jpg"):
     if i % 10 == 0:
-        print(f"processing image {i+1}/{len(dataloader)}")
-    image_tensor = item["full_image"]
-    yolo_target = item['yolo_bbox_label']
-    plate_target = item['pdlpr_plate_idx']
+        print(f"processing image {i+1}/{55000}")
+    image_name = image_path.name
+    plate_label_path = Path("dataset/labels_pdlpr/test/") / (image_path.stem + ".txt")
 
-    img_pil = to_pil_image(image_tensor)
+    with open(plate_label_path, "r", encoding="utf-8") as f:
+        pdlpr_plate_str = f.readline().strip()
+    #print(pdlpr_plate_str)
 
-    image_tensor = image_tensor.transforms.Resize((640, 640))
-    cropped_image = crop_image_yolo(yolo_model, image)
-    #apply transformation to the image for the 
-    processed_image = preprocess(cropped_image).unsqueeze(0).to(device)
+    fields = image_path.stem.split("-")    # image_path.stem is the filename without .jpg
+    # Field 2 (index 2) is bbox: format is "x1&y1_x2&y2"
+    bbox_part = fields[2]
+    corners = bbox_part.split("_")
+    x1, y1 = map(int, corners[0].split("&"))
+    x2, y2 = map(int, corners[1].split("&"))
+    
+    true_box = [x1, y1, x2, y2]
+    #print(true_box)
+    plate_number = fields[4]
+    character_id_list = plate_number.split("_")
+    plate_id = []
+    for c in character_id_list:
+        plate_id.append(int(c))
+    
+    #converting the index from the name to the index from the 
+    #unified vocabulary
+    plate_id= target_to_index(plate_id)
+    #print(plate_id)
 
-    logits_model_output = cnn_ctc_model(processed_image)
+    
+     
+    true_plate_idx = torch.tensor(plate_id, dtype=torch.long).to(device)
+    
+    image = Image.open(image_path).convert("RGB")
+
+    #candidate_bounding_box = plate_detector(image_path, true_box)
+    #print(candidate_bounding_box)
+
+    #iou = compute_iou(candidate_bounding_box, true_box)
+    #x1,y1, x2, y2 = candidate_bounding_box
+    cropped_image = image.crop((x1, y1, x2, y2))
+    #import matplotlib.pyplot as plt
+    #plt.imshow(cropped_image, cmap="gray")  # usa cmap="gray" per immagini in scala di grigi
+    #plt.title("Cropped Plate")
+    #plt.axis("off")
+    #plt.show()
+
+    processed_image =preprocess(cropped_image).unsqueeze(0).to(device)
+    with torch.no_grad():
+        logits_model_output = cnn_ctc_model(processed_image)
+        evaluator.reset()
+        evaluator.update_baseline(logits_model_output, [true_plate_idx])
+        metrics = evaluator.compute()
+
+        char_acc = metrics["char_accuracy"]
+        plate_acc = metrics["seq_accuracy"]
+        #print(f"  Char Acc: {char_acc:.2f}, Seq Acc: {plate_acc:.2f}\n")
+        plate_prediction = evaluator.greedy_decode_idx(logits_model_output)[0]
+        #print(plate_prediction)
+
+        plate_string = index_to_target(plate_prediction)
+        print(f"predicted_plate: {''.join(plate_string)}, original plate: {pdlpr_plate_str}")
+    
+
+    i+=1
+
     
 
 

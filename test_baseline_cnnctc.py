@@ -17,10 +17,10 @@ PLATE_LENGTH = 8
 
 NUM_CHAR = len(CHAR_LIST) + 1 #since we include the blank character
 
-BATCH_SIZE = 36
+BATCH_SIZE = 32
 LR = 0.001
 WEIGHT_DECAY = 0.0001
-NUM_EPOCHS = 60
+NUM_EPOCHS = 40
 
 SAVE_NAME = f"n_epochs_{NUM_EPOCHS}_bs_{BATCH_SIZE}_LR_{LR}_wd_{WEIGHT_DECAY}_a"
 model = CNN_CTC_model(num_char=NUM_CHAR, hidden_size=256)
@@ -66,6 +66,7 @@ with torch.no_grad():
         #metrics for the whole batch
         mean_batch_test_char_acc = metrics["char_accuracy"]
         mean_batch_test_acc = metrics["seq_accuracy"]
+        print(mean_batch_test_acc, mean_batch_test_char_acc)
         test_acc.append(mean_batch_test_acc)
         char_test_acc.append(mean_batch_test_char_acc)
 

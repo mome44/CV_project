@@ -60,7 +60,7 @@ def target_to_index(target_list):
     output.append(CHAR_IDX[province])
     output.append(CHAR_IDX[alphabet])
     for char_idx in range(2,8):
-        char = ADS[char_idx]
+        char = ADS[target_list[char_idx]]
         output.append(CHAR_IDX[char])
     return output
 
@@ -68,7 +68,7 @@ def target_to_index(target_list):
 def index_to_target(index_list):
     output=[]
     for idx in index_list:
-        output.append(index_list[idx])
+        output.append(IDX_CHAR[idx])
     return output
 
 
