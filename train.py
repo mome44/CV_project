@@ -81,15 +81,6 @@ if __name__ == "__main__":
         result = best_model(image_path, max_det=5, verbose = False)[0]
         predictions = result.boxes.xyxy.cpu().numpy()  # shape: (N, 4)
 
-        # Estrazione delle coordinate reali (Ground Truth) in formato: x1_y1_x2_y2_imageid.jpg
-        # name = image_path.stem
-        # try:
-        #   x1, y1, x2, y2 = map(int, name.split("_")[:4])
-        #    real_box = [x1, y1, x2, y2]
-        # except:
-        #    print(f"[WARN] Skipping {name}, filename does not contain GT info")
-        #    continue
-
         real_box = load_gt_box_from_label_validation(image_path)
         if real_box is None:
             continue  # skip immagine se GT non c'è o è invalid
