@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-# Positional Encoding (apprendibile, semplice)
+# Positional Encoding 
 class PositionalEncoding(nn.Module):
     def __init__(self, dim, max_len=108):
         super().__init__()

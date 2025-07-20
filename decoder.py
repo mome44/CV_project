@@ -29,15 +29,15 @@ class DecoderBlock(nn.Module):
         # tgt: [B, T, dim], memory: [B, S, dim]
         x = tgt
 
-        # Masked Self-Attention
+        # masked self attention
         attn_out, _ = self.self_attn(x, x, x, attn_mask=tgt_mask)
         x = self.norm1(x + attn_out)
 
-        # Cross-Attention with Encoder
+        # cross attention
         attn_out, _ = self.cross_attn(x, memory, memory)
         x = self.norm2(x + attn_out)
 
-        # Feedforward
+        # feedforward neural network
         ff_out = self.ff(x)
         x = self.norm3(x + ff_out)
 
@@ -47,7 +47,7 @@ class ParallelDecoder(nn.Module):
     def __init__(self, dim=512, vocab_size=70, num_heads=8, num_blocks=3, seq_len=18):
         super().__init__()
         self.seq_len = seq_len
-        self.char_embed = nn.Parameter(torch.randn(1, seq_len, dim))  # Learnable embeddings
+        self.char_embed = nn.Parameter(torch.randn(1, seq_len, dim)) 
         self.vocab_size = vocab_size
         self.dim = dim
 
@@ -60,7 +60,7 @@ class ParallelDecoder(nn.Module):
          
          if new_vocab_size != self.vocab_size:
             print(f"Updating vocab size from {self.vocab_size} to {new_vocab_size}")
-            # Save old weights and biases
+            # Save old weights 
             old_classifier = self.classifier
             old_out_features = old_classifier.out_features
         
@@ -77,16 +77,16 @@ class ParallelDecoder(nn.Module):
             self.classifier = new_classifier
             self.vocab_size = new_vocab_size
 
-    def _generate_mask(self, size):
-        # Mask future tokens (lower triangular matrix)
+    def generate_mask(self, size):
+        # mask future tokens
         mask = torch.triu(torch.ones(size, size), diagonal=1).bool()
         return mask
 
     def forward(self, memory):
-        # memory: [B, S, dim] → encoder output (e.g., [B, 108, 512])
+        # memory: [B, S, dim] → encoder output (B, 108, 512])
         B = memory.size(0)
         x = self.char_embed.expand(B, -1, -1)  # [B, T, dim]
-        tgt_mask = self._generate_mask(self.seq_len).to(memory.device)  # [T, T]
+        tgt_mask = self.generate_mask(self.seq_len).to(memory.device)  # [T, T]
 
         for block in self.blocks:
             x = block(x, memory, tgt_mask)

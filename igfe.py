@@ -2,12 +2,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-# IGFE:
-#1. FocusStructure → slicing + concat → conv
-#2. ConvDownSampling ×2 → conv stride=2
-#3. RESBLOCK ×4 → CNN blocks con residual connections
-
-# --- Focus Structure ---
 class FocusStructure(nn.Module):
     def __init__(self, in_channels=3, out_channels=64):
         super(FocusStructure, self).__init__()
@@ -18,28 +12,27 @@ class FocusStructure(nn.Module):
         )
 
     def forward(self, x):
-        # Slicing: [B, C, H, W] → concatenate quadranti
-        patch_tl = x[..., ::2, ::2]  # top-left
-        patch_tr = x[..., ::2, 1::2]  # top-right
-        patch_bl = x[..., 1::2, ::2]  # bottom-left
-        patch_br = x[..., 1::2, 1::2]  # bottom-right
+        patch_tl = x[..., ::2, ::2]  
+        patch_tr = x[..., ::2, 1::2]  
+        patch_bl = x[..., 1::2, ::2]  
+        patch_br = x[..., 1::2, 1::2] 
         x = torch.cat([patch_tl, patch_tr, patch_bl, patch_br], dim=1)  # [B, 4C, H/2, W/2]
         return self.conv(x)
 
-# --- ConvDownSampling ---
+
 class ConvDownSampling(nn.Module):
     def __init__(self, in_channels, out_channels):
         super(ConvDownSampling, self).__init__()
         self.block = nn.Sequential(
             nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=2, padding=1),
             nn.BatchNorm2d(out_channels),
-            nn.LeakyReLU(0.1)
+            nn.LeakyReLU(0.1) #here we use as activation function LeakyReLU, which is more used in car plate detection
         )
 
     def forward(self, x):
         return self.block(x)
 
-# --- Residual Block (RESBLOCK) ---
+
 class ResBlock(nn.Module):
     def __init__(self, channels):
         super(ResBlock, self).__init__()
@@ -55,7 +48,7 @@ class ResBlock(nn.Module):
     def forward(self, x):
         return self.relu(x + self.block(x))
 
-# --- IGFE ---
+
 class IGFE(nn.Module):
     def __init__(self):
         super(IGFE, self).__init__()
