@@ -30,6 +30,7 @@ label_folder = "dataset/labels_pdlpr/train"
 BATCH_SIZE = 16
 LR = 5e-4 #0.0005
 NUM_EPOCHS = 5
+WEIGHT_DECAY = 0.0001
 
 #function that builds the vocabulary (chinese regions)
 def build_vocab(label_folder, file_name, include_blank=True):
@@ -119,7 +120,7 @@ def train(model_parts, evaluator, train_loader, val_loader, char_idx, idx_char, 
     val_lev = [] 
     
     for epoch in range(num_epochs):
-        evaluator = Evaluator(idx_char)
+        evaluator = Evaluator(idx2char=idx_char)
     
         loop = tqdm(train_loader, desc=f"Epoch {epoch+1}/{num_epochs}")
         for batch in loop:
@@ -299,7 +300,7 @@ if __name__ == "__main__":
     
     # TRAINING
     params = list(igfe.parameters()) + list(encoder.parameters()) + list(decoder.parameters())
-    optimizer = optim.Adam(params, lr=LR)
+    optimizer = optim.Adam(params, lr=LR, weight_decay=0.0001)
     
     print("Starting training..........")
     train_char_accs, train_seq_accs, train_lev, train_losses = train(

@@ -31,7 +31,7 @@ class Evaluator:
             decoded.append("".join(chars))
         return decoded
     
-    def _greedy_decode_idx(self, logits):
+    def greedy_decode_idx(self, logits):
         predictions = torch.argmax(logits, dim=2)
         predictions= predictions.transpose(0, 1)
         final_predictions = []

@@ -9,3 +9,5 @@ In this project we implement the main algorithm for plate detection which is for
 - /results: here there are txt files which contains the result metrics for the training and testing phase for each model
 
 ## File structure
+
+spostare le immagini in metrics_images
