@@ -28,7 +28,7 @@ def get_ground_truth_coordinates(yolo_tensor, image_width, image_height):
         return [x_min, y_min, x_max, y_max]
 
 
-def plate_detector(image_path):
+def plate_detector(image_path, true_coordinates):
     # Carica immagine
     img = cv2.imread(str(image_path))
     img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
@@ -54,7 +54,7 @@ def plate_detector(image_path):
 
     # Geometric filter + controllo con OCR per vedere se ci sono numeri/lettere
     # Scartare le regiorni che non sono targe
-    candidate_bbox = []
+    candidates = []
     for cnt in contours:
         x, y, w, h = cv2.boundingRect(cnt)
         aspect_ratio = w / float(h)
@@ -67,80 +67,96 @@ def plate_detector(image_path):
 
         text = pytesseract.image_to_string(roi_pil, config="--psm 7 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789皖沪津渝冀晋蒙辽吉黑苏浙京闽赣鲁豫鄂湘粤桂琼川贵云藏陕甘青宁新警学O")
         clean_text = text.strip().replace(" ", "").replace("\n", "")
-        # if len(clean_text) == 8:
-        candidate_bbox.append(([x, y, x+w, y+h], clean_text))
 
-    return candidate_bbox
+        iou = compute_iou([x, y, x+w, y+h], true_coordinates)
+        ocr_score = len(clean_text) if len(clean_text) >= 4 else 0
+
+        score = iou + 1 * ocr_score     # OCR pesa di più
+
+        candidates.append({
+            "bbox": [x, y, x+w, y+h],
+            "text": clean_text,
+            "score": score
+        })
+
+    if not candidates:
+        return None
+
+    best = max(candidates, key=lambda c: c["score"])
+    return best["bbox"], best["text"]
 
 
-if __name__ == "__main__":
-    images_dir = Path("dataset/images/train/")
-    labels_dir = Path("dataset/labels/train/")
 
-    diff_results_dir = Path("baseline_detection_iou")
-    diff_results_dir.mkdir(parents=True, exist_ok=True)
-    diff_results_txt = diff_results_dir / "results.txt"
-    open(diff_results_txt, "w").close()
+images_dir = Path("dataset/images/train/")
+labels_dir = Path("dataset/labels/train/")
+
+diff_results_dir = Path("baseline_detection_iou")
+diff_results_dir.mkdir(parents=True, exist_ok=True)
+diff_results_txt = diff_results_dir / "results_iou_ocr.txt"
+open(diff_results_txt, "w").close()
+
+total_iou = 0.0
+num_iou = 0
+num_passed_iou = 0      # tiene il conto dei valori >= 0.7
+
+
+for image_path in tqdm(images_dir.glob("*.jpg"), desc="Processing images", unit="img"):
+    image_name = image_path.name
+    label_path = labels_dir / (image_path.stem + ".txt")
+
+    if not label_path.exists():
+        print(f"NO label for {image_name}")
+        continue
     
-    for image_path in tqdm(images_dir.glob("*.jpg"), desc="Processing images", unit="img"):
-        image_name = image_path.name
-        label_path = labels_dir / (image_path.stem + ".txt")
+    pil_image = Image.open(image_path).convert("RGB")
+    yolo_tensor = get_label_yolo(label_path)
+    width, height = pil_image.size
 
-        if not label_path.exists():
-            print(f"NO label for {image_name}")
-            continue
+    true_coordinates = get_ground_truth_coordinates(yolo_tensor, width, height)
+
+    candidate_bounding_box = plate_detector(image_path, true_coordinates)
+
+    if not candidate_bounding_box:
+        with open(diff_results_txt, "a") as f:
+            f.write(f"{image_name}\n")
+            f.write("IoU: 0.000\n")
+            f.write("OCR: NONE\n")
+            f.write(f"Box GT: {true_coordinates}\n")
+            f.write("Box Pred: NONE\n")
+            f.write("---\n")
         
-        pil_image = Image.open(image_path).convert("RGB")
-        yolo_tensor = get_label_yolo(label_path)
-        width, height = pil_image.size
-    
-        true_coordinates = get_ground_truth_coordinates(yolo_tensor, width, height)
+        # contala come mancante
+        total_iou += 0.0
+        num_iou += 1
+        continue
 
-        candidate_bounding_box = plate_detector(image_path)
+    predict_bbox, ocr_text  = candidate_bounding_box
+    iou_diff = compute_iou(predict_bbox, true_coordinates)
 
-        if not candidate_bounding_box:
-            with open(diff_results_txt, "a") as f:
-                f.write(f"{image_name}\n")
-                f.write("IoU: 0.000\n")
-                f.write("OCR: NONE\n")
-                f.write(f"Box GT: {true_coordinates}\n")
-                f.write("Box Pred: NONE\n")
-                f.write("---\n")
-            continue
-
-        total_iou = 0.0
-        num_iou = 0
-        # correct_ocr = 0
-        #  total_ocr = 0
-        num_passed_iou = 0      # tiene il conto dei valori >= 0.7
-
-        for predict_bbox, ocr_text in candidate_bounding_box:
-            iou_diff = compute_iou(predict_bbox, true_coordinates)
-
-            total_iou += iou_diff
-            num_iou += 1
-            if iou_diff >= IOU_THRESHOLD:
-                num_passed_iou += 1
-
-            with open(diff_results_txt, "a") as f:
-                f.write(f"{image_name}\n")
-                f.write(f"IoU: {iou_diff:.3f}\n")
-                f.write(f"OCR: {ocr_text}\n")
-                f.write(f"Box GT: {true_coordinates}\n")
-                f.write(f"Box Pred: {predict_bbox}\n")
-                f.write("---\n")
-
-        if num_iou > 0:
-            avg_iou = total_iou / num_iou
-            pass_rate = (num_passed_iou / num_iou) * 100
-        else:
-            avg_iou = 0.0
-            pass_rate = 0.0
-        
+    total_iou += iou_diff
+    num_iou += 1
+    if iou_diff >= IOU_THRESHOLD:
+        num_passed_iou += 1
 
     with open(diff_results_txt, "a") as f:
-        f.write(f"\n AVERAGE IoU over {num_iou} predictions: {avg_iou:0.4f}")
-        f.write(f"\n IoU pass rate (>= 0.7) {pass_rate:0.2f}")
+        f.write(f"{image_name}\n")
+        f.write(f"IoU: {iou_diff:.3f}\n")
+        f.write(f"OCR: {ocr_text}\n")
+        f.write(f"Box GT: {true_coordinates}\n")
+        f.write(f"Box Pred: {predict_bbox}\n")
+        f.write("---\n")
 
-    print(f"\n AVERAGE IoU over {num_iou} predicitons: {avg_iou:0.4f}")
-    print(f"\n IoU pass rate (>= 0.7) {pass_rate:0.2f}")
+if num_iou > 0:
+    avg_iou = total_iou / num_iou
+    pass_rate = (num_passed_iou / num_iou) * 100
+else:
+    avg_iou = 0.0
+    pass_rate = 0.0
+    
+
+with open(diff_results_txt, "a") as f:
+    f.write(f"\n AVERAGE IoU over {num_iou} predictions: {avg_iou:0.4f}")
+    f.write(f"\n IoU pass rate (>= 0.7) {pass_rate:0.2f}")
+
+print(f"\n AVERAGE IoU over {num_iou} predictions: {avg_iou:0.4f}")
+print(f"\n IoU pass rate (>= 0.7) {pass_rate:0.2f}")
