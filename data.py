@@ -7,8 +7,8 @@ from torch.utils.data import DataLoader
 import torchvision.transforms.functional as F
 import torchvision.transforms as T
 from torchvision import transforms
-from globals import BATCH_SIZE_TRAIN_Y, BATCH_SIZE_TEST_Y
-
+from globals import BATCH_SIZE_TRAIN_Y, BATCH_SIZE_TEST_Y, PROVINCES, ALPHABETS, ADS, CHAR_LIST
+from utils import target_to_index
 
 class CCPDDataset(Dataset):
     # This class encapsulates the logic for data loading and pre-processing
@@ -226,16 +226,17 @@ class RecognitionDataset(Dataset):
         image = Image.open(img_path).convert("RGB")
         fields = img_name.split("-")
         plate_number = fields[4]
+        
         character_id_list = plate_number.split("_")
-        #print(plate_number, character_id_list)
+        
         plate_id = []
         for c in character_id_list:
             plate_id.append(int(c))
- 
+        #print(plate_id)
+        plate_id= target_to_index(plate_id)
+        #print(plate_id)
         label = torch.tensor(plate_id, dtype=torch.long)
         
-
         image = self.transform(image)
-    
-        target_length = len(label)
-        return image, label, target_length
+        
+        return image, label

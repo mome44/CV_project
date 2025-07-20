@@ -1,0 +1,4 @@
+Final train accuracy: 0.6128
+Final validation accuracy: 0.2448
+Final character train accuracy: 0.8737
+Final character validation accuracy: 0.6009

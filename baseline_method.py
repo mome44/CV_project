@@ -1,286 +1,152 @@
-import os
-import torch
-import matplotlib.pyplot as plt
-from torchvision.models.detection import fasterrcnn_resnet50_fpn
-from torchvision.models.detection.faster_rcnn import FastRCNNPredictor 
-from itertools import product
+import cv2
+import numpy as np
+from PIL import Image
 from data import PlateDataset
-from utils import compute_iou
-from globals import IOU_THRESHOLD
-from tqdm import tqdm
-#Hyperparameters combinations
-batch_sizes = [16, 32]
-learning_rates = [0.001, 0.002]
+import torch
+from pathlib import Path
+import pytesseract
 
-weight_decays = [0.0001, 0.0005]
-epochs = [10, 20]
+def score_plate(pil_img):
+    img = np.array(pil_img.convert("L"))  # grayscale numpy
+    h, w = img.shape
+    aspect_ratio = w / h
 
+    # OCR
+    text = pytesseract.image_to_string(pil_img, config="--psm 7 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+    ocr_score = len(text.strip())
 
-combinations = product(batch_sizes, learning_rates, weight_decays, epochs)
+    # Edge density
+    edges = cv2.Canny(img, 100, 200)
+    edge_density = np.sum(edges > 0) / (w * h)
 
-#executing the training and testing for all the possible combinations to get the best one
-for bs, lr, wd, ne in combinations:
+    # Colore uniforme
+    stddev = np.std(img)
 
-    #Hyperparameters
-    BATCH_SIZE = bs
-    LR = lr
-    WEIGHT_DECAY = wd
-    NUM_EPOCHS = ne
-
-    SAVE_NAME = f"n_epochs_{NUM_EPOCHS}_bs_{BATCH_SIZE}_LR_{LR}_wd_{WEIGHT_DECAY}"
-
-    print(f"training with {SAVE_NAME}")
-    #loading the pretrained model
-    model = fasterrcnn_resnet50_fpn(weights="DEFAULT")
-    #model = retinanet_resnet50_fpn(weights="DEFAULT")
-
-    #Since we want that the last classifier layer to have only an output of two
-    #so we get the input dimension of it
-    in_features = model.roi_heads.box_predictor.cls_score.in_features
-    #and reinitialize it with the new class, we have to put num classes = 2 because otherwise the model
-    #will always be sure that there will be a plate
-    model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes=2)  # background + plate
-
-    #in_channels = model.head.classification_head.conv[0].in_channels
-    #num_anchors = model.head.classification_head.num_anchors
-    #model.head.classification_head = RetinaNetClassificationHead(in_channels, num_anchors, num_classes=2)
-
-    #cambiare il dataloader in modo che ce ne sia uno per train validation e test
-    dataset = PlateDataset("dapaset/images", "dataset/labels")
-    train_dataset = PlateDataset("dapaset/images/train", "dapaset/labels/train")
-    val_dataset = PlateDataset("dapaset/images/val", "dapaset/labels/val")
-    test_dataset = PlateDataset("dapaset/images/test", "dapaset/labels/test")
+    # Normalizza e combina (puoi pesare ogni termine)
+    score = (
+        ocr_score * 2.0 +  # testo più lungo ha peso maggiore
+        edge_density * 100 +  # scala edge per contare
+        max(0, 1 - abs(aspect_ratio - 4.5)) * 5 +  # penalizza aspect strani
+        max(0, 50 - stddev) * 0.1  # penalizza rumore
+    )
+    return score, text.strip()
 
 
-    train_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, collate_fn=lambda x: tuple(zip(*x)))
-    val_dataloader = torch.utils.data.DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, collate_fn=lambda x: tuple(zip(*x)))
-    #test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=True, collate_fn=lambda x: tuple(zip(*x)))
-    #this optimizer uses stochastic gradient descent and has in input the parameters (weights) from 
-    #the pretrained model
-    params = model.parameters()
-    optimizer = torch.optim.SGD(params, lr=LR, momentum=0.9, weight_decay=WEIGHT_DECAY)
+def plate_detection_traditional(image_input):
+    img = cv2.imread(image_input)
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-    #initialize the device
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model.to(device)
+    # Equalizzazione dell'istogramma per migliorare contrasto
+    gray = cv2.equalizeHist(gray)
 
-    iou_scores_val=[]
-    iou_scores_train=[]
+    # Edge detection (Canny)
+    edges = cv2.Canny(gray, 100, 200)
 
-    precision_train=0
-    recall_train = 0
-    f1_train =0
+    # Morphology (dilatazione e chiusura per connettere contorni)
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+    closed = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel)
 
-    precision_val = 0
-    recall_val = 0
-    f1_val = 0
+    # Trova i contorni
+    contours, _ = cv2.findContours(closed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-    epsilon = 1e-6
-    #TRAIN LOOP we are doing fine tuning on the task of recognizing plate
-    for e in range(NUM_EPOCHS):
-        model.train()
-        train_loss= 0.0
-        val_loss = 0.0
-        train_iou = []
-        val_iou = []
-        #tp, fp, fn to be used in the last epoch
-        TP_train = 0
-        FP_train = 0
-        FN_train = 0
-        TP_val = 0
-        FP_val = 0
-        FN_val = 0
+def detect_plate_cv_advanced(image_input, debug=False, use_ocr_check=False):
+    """
+    Versione avanzata della plate detection con tecniche tradizionali.
+    
+    Params:
+        image_input: path immagine o PIL.Image
+        debug: se True, mostra immagini con bounding box
+        use_ocr_check: se True, filtra con OCR le regioni non testuali
 
-        i=0
-        #does the for loop for all the items in the same batch
-        for images, labels in tqdm(train_dataloader, desc=f"Epoch {e+1}/{NUM_EPOCHS} - Training"):
-            #print(f"Batch {i + 1}/{len(train_dataloader)}")
-            #moves the images and labels to the GPU
-            images = list(img.to(device) for img in images)
-            labels = [{k: v.to(device) for k, v in t.items()} for t in labels]
+    Returns:
+        - list of cropped plate images (as PIL.Image)
+        - (opzionale) immagine con bounding box (in formato RGB)
+    """
+    img = cv2.imread(str(image_input))
+    
 
-            #in this model there are different losses
-            loss_dict = model(images, labels)
-            #we do the sum of all of them to compute the total loss
-            total_step_loss = sum(loss for loss in loss_dict.values())
+    orig_img = img.copy()
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    gray = cv2.equalizeHist(gray)
 
-            #we remove the gradients from the previous steps
-            optimizer.zero_grad()
-            #compute the new gradients
-            total_step_loss.backward()
-            #update the weights that are computed now.
-            optimizer.step()
+    # 1. Sobel verticale
+    sobelx = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=3)
+    sobelx = cv2.convertScaleAbs(sobelx)
 
-            train_loss += total_step_loss.item()
-            #put the model in the evaluation phase to get the preditions
-           
-            model.eval() 
-            with torch.no_grad():
-                train_outputs = model(images)
-            
-            model.train()
-            for pred, target in zip(train_outputs, labels):
-                #prediction is a list that contains a score from 0 to 1 that 
-                #includes the confidence of the answer, so if this score is less than 0.5
-                #we will not consider it   
-                print(pred['scores']) 
-                if len(pred['scores']) > 0:
-                    #we take the index of the detected plate with the best score
-                    best_index = pred['scores'].argmax()
-                    best_box = pred['boxes'][best_index]
-                    true_box = target['boxes'].cpu()[0]
-                    #print(best_box,true_box)
-                    single_iou = compute_iou(best_box.numpy(), true_box.numpy())
-                    #train_iou.append(single_iou)
-                    
-                    if single_iou > IOU_THRESHOLD:
-                        train_iou.append(1)
-                        TP_train += 1
-                    else:
-                        train_iou.append(0)
-                        FP_train += 1
-                else:
-                    FN_train += 1
-            i+=1
-        print(train_iou)
-        #compute the mean of the iou training score
-        mean_train_iou = sum(train_iou)/len(train_iou)
-        iou_scores_train.append(mean_train_iou)
+    # 2. Binarizzazione + morfologia
+    _, thresh = cv2.threshold(sobelx, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (17, 3))
+    closed = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
 
-        j=0
-        #Validation phase
-        model.eval()
-        with torch.no_grad():
-            for images, labels in val_dataloader:
-                print(f"Batch {j + 1}/{len(val_dataloader)}")
-                images = [img.to(device) for img in images]
-                labels = [{k: v.to(device) for k, v in t.items()} for t in labels]
+    # 3. Trova contorni
+    contours, _ = cv2.findContours(closed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-                # Inference
-                val_outputs = model(images)
+    plates = []
+    for cnt in contours:
+        x, y, w, h = cv2.boundingRect(cnt)
+        aspect_ratio = w / float(h)
+        area = w * h
+        roi_gray = gray[y:y+h, x:x+w]
+        roi_color = orig_img[y:y+h, x:x+w]
 
-                for pred, target in zip(val_outputs, labels):
-                    #prediction is a list that contains a score from 0 to 1 that 
-                    #includes the confidence of the answer, so if this score is less than 0.5
-                    #we will not consider it
-                    print(pred['scores'])              
-                    if len(pred['scores']) > 0:
-                        #we take the index of the detected plate with the best score
-                        best_index = pred['scores'].argmax()
-                        best_box = pred['boxes'][best_index]
+        # 4. Filtro geometrico
+        if not (2 < aspect_ratio < 6 and 1000 < area < 40000):
+            continue
 
-                        true_box = target['boxes'].cpu()[0]
+        # 5. Edge density interna
+        edges_inside = cv2.Canny(roi_gray, 100, 200)
+        edge_density = np.sum(edges_inside > 0) / (w * h)
+        if edge_density < 0.02:
+            continue
 
-                        single_iou = compute_iou(best_box.numpy(), true_box.numpy())
-                        
-                        #val_iou.append(single_iou)
-                        if single_iou > IOU_THRESHOLD:
-                            val_iou.append(1)
-                            TP_val += 1
-                        else:
-                            val_iou.append(0)
-                            FP_val += 1
-                    else:
-                        FN_val += 1
-                j+=1
+        # 6. Uniformità colore
+        stddev = np.std(roi_gray)
+        if stddev > 55:
+            continue
 
-        #compute the mean of the iou validation score
-        mean_val_iou = sum(val_iou)/len(val_iou)
-        iou_scores_val.append(mean_val_iou)
-        
-        if e == NUM_EPOCHS-1 :
-            #in the last epoch I compute the precision recall f1 score metrics for training and validation
-            precision_train = TP_train / (TP_train + FP_train + epsilon)
-            recall_train = TP_train / (TP_train + FN_train + epsilon)
-            f1_train = 2 * precision_train * recall_train / (precision_train + recall_train + epsilon)
+        # 7. (Opzionale) OCR check
+        if use_ocr_check:
+            text = pytesseract.image_to_string(roi_gray, config="--psm 7")
+            if len(text.strip()) < 4:
+                continue
 
-            precision_val= TP_val / (TP_val + FP_val + epsilon)
-            recall_val = TP_val / (TP_val + FN_val + epsilon)
-            f1_val = 2 * precision_val * recall_val / (precision_val + recall_val + epsilon)
+        # Se passa tutti i filtri, salva crop e disegna box
+        plate_img = Image.fromarray(cv2.cvtColor(roi_color, cv2.COLOR_BGR2RGB))
+        plates.append(plate_img)
 
-        print(f"Epoch {e +1}/{NUM_EPOCHS} - train loss: {train_loss/len(train_dataloader):.4f} - val mIou: {mean_val_iou}" )
+        if debug:
+            cv2.rectangle(orig_img, (x, y), (x+w, y+h), (0, 255, 0), 2)
 
-    #Saving the model
-    torch.save(model.state_dict(), f"models/fasterrcnn_plate_detector-{SAVE_NAME}.pth")
+    if debug:
+        debug_img = cv2.cvtColor(orig_img, cv2.COLOR_BGR2RGB)
+        return plates, Image.fromarray(debug_img)
+    return plates
 
-    #Plotting the figure for the train and validation
-    plt.figure(figsize=(8, 5))
-    plt.plot(NUM_EPOCHS, iou_scores_train, label="train IoU", marker='o')
-    plt.plot(NUM_EPOCHS, iou_scores_val, label="validation IoU", marker='s')
-    plt.xlabel("epoch")
-    plt.ylabel("IoU")
-    plt.title("Train and validation iou per epoch")
-    plt.grid(True)
-    plt.legend()
-    plt.tight_layout()
+image_paths = Path("dataset/images/train")
+
+train_dataset = PlateDataset("dapaset/images/train", "dapaset/labels/train")
+
+train_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=1, shuffle=True)
+
+for image_path in image_paths.glob("*.jpg"):
+    print(f"Found image: {image_path}")
+    print(f"Processing: {image_path.name}")
+
+    plates, debug_img = detect_plate_cv_advanced(image_path, debug=True)
+    
+    # Visualizza i risultati
+    from matplotlib import pyplot as plt
+
+    for i, plate in enumerate(plates):
+        plt.subplot(1, len(plates), i+1)
+        plt.imshow(plate)
+        plt.axis("off")
+    plt.suptitle("Targhe rilevate")
     plt.show()
-    plt.savefig(f"imgs/train_validation_fastercnn-{SAVE_NAME}.png")
 
-    #getting the last iou value for train and validation
-    final_train_iou = iou_scores_train[-1]
-    final_val_iou = iou_scores_val[-1]
-
-    with open(f"results/fastercnn-{SAVE_NAME}.txt", "w") as f:
-        f.write(f"Final train IoU: {final_train_iou:.4f}\n")
-        f.write(f"Final validation IoU: {final_val_iou:.4f}\n")
-        f.write(f"Final train precision: {precision_train:.4f}\n")
-        f.write(f"Final validation precision: {precision_val:.4f}\n")
-        f.write(f"Final train recall: {recall_train:.4f}\n")
-        f.write(f"Final validation recall: {recall_val:.4f}\n")
-        f.write(f"Final train f1: {f1_train:.4f}\n")
-        f.write(f"Final validation f1: {f1_val:.4f}\n")
+    # Visualizza l'immagine originale con box
+    plt.imshow(debug_img)
+    plt.title("Bounding box")
+    plt.axis("off")
+    plt.show()
         
-
-    #TESTING PHASE
-
-    model.load_state_dict(torch.load(f"models/fasterrcnn_plate_detector-{SAVE_NAME}.pth"))
-
-    model.eval()
-    epsilon = 1e-6
-    iou_test = []
-    TP_test = 0
-    FP_test = 0
-    FN_test = 0
-    precision_test = 0
-    recall_test = 0
-    f1_test = 0
-    #here we just loop throught the test data and compute the Iou score
-    with torch.no_grad():
-        for images, labels in test_dataloader:
-            images = [img.to(device) for img in images]
-            labels = [{k: v.to(device) for k, v in t.items()} for t in labels]
-
-            outputs = model(images)
-
-            for pred, target in zip(outputs, labels):
-                if len(pred['scores']) > 0:
-                        
-
-                    best_index = pred['scores'].argmax()
-                    pred_box = pred['boxes'][best_index].cpu().numpy()
-                    true_box = target['boxes'][0].cpu().numpy()
-
-                    iou = compute_iou(pred_box, true_box)
-                    if iou > IOU_THRESHOLD:
-                        iou_test.append(1)
-                        TP_test +=1
-                    else:
-                        iou_test.append(0)
-                        FP_test +=1
-                else:
-                    FN_test += 1
-        precision_test= TP_test / (TP_test + FP_test + epsilon)
-        recall_test = TP_test / (TP_test + FN_test + epsilon)
-        f1_test = 2 * precision_test * recall_test / (precision_test + recall_test + epsilon)
-
-    mean_iou = sum(iou_test) / len(iou_test)
-    print(f"Test result IoU: {mean_iou:.4f}, precision: {precision_test:.4f}, recall: {recall_test:.4f}, f1 score: {f1_test:.4f}")
-
-    #saving the iou result of the testing
-    with open(f"results/fastercnn-test-{SAVE_NAME}.txt", "w") as f:
-        f.write(f"Final testing IoU: {mean_iou:.4f}\n")
-        f.write(f"Final testing precision: {precision_test:.4f}\n")
-        f.write(f"Final testing recall: {recall_test:.4f}\n")
-        f.write(f"Final testing f1: {f1_test:.4f}\n")
-
-

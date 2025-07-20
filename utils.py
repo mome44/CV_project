@@ -4,7 +4,7 @@ from pathlib import Path
 from PIL import Image
 import matplotlib.pyplot as plt
 from ultralytics import YOLO
-from globals import IOU_THRESHOLD
+from globals import *
 
 
 base_dir = Path("dataset")
@@ -48,7 +48,38 @@ def compute_iou(box_1, box_2):
     iou = interArea / float(boxAArea + boxBArea - interArea + 1e-6)  #+1e-6 is used to avoid the division per zero
     return iou
 
-"""
+
+def target_to_index(target_list):
+    #this function converts the id of the target 
+    #into the ids that are returned by the model
+    #since it uses the ids from the sorted list of 
+    #all the possible characters
+    output = []
+    province = PROVINCES[target_list[0]]
+    alphabet = ALPHABETS[target_list[1]]
+    output.append(CHAR_IDX[province])
+    output.append(CHAR_IDX[alphabet])
+    for char_idx in range(2,8):
+        char = ADS[char_idx]
+        output.append(CHAR_IDX[char])
+    return output
+
+
+def index_to_target(index_list):
+    output=[]
+    for idx in index_list:
+        output.append(index_list[idx])
+    return output
+
+# not used !!!
+def save_metrics_txt(metrics, model_name):
+    filename = model_name.replace('.pt', '_metrics.txt')
+    with open(filename, 'w') as f:
+        for k, v in metrics.items():
+            f.write(f"{k}: {v}\n")
+
+
+
 def plot_accuracy(model_name):
     # it uses the mean Average Precision (mAP@0.5) --> it is the standard accuracy measure in object detection
     
@@ -122,15 +153,18 @@ def plot_iou(model_name):
     plt.legend()
     plt.savefig(model_name.replace(".pt", "_mAP50-95(B).png"))
     plt.close()
+
+
+
 """
 
 
 
 def load_gt_box_from_label(image_path):
-    """
+   
     Load the ground truth box from a YOLO-format label file.
     Returns [x1, y1, x2, y2] or None if label file is missing/invalid.
-    """
+   
     label_path = Path("dataset/labels/val") / (image_path.stem + ".txt")
 
     if not label_path.exists():
@@ -163,3 +197,4 @@ def load_gt_box_from_label(image_path):
     x2, y2 = cx + bw / 2, cy + bh / 2
 
     return [x1, y1, x2, y2]
+"""
