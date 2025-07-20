@@ -49,6 +49,29 @@ def compute_iou(box_1, box_2):
     return iou
 
 
+def target_to_index(target_list):
+    #this function converts the id of the target 
+    #into the ids that are returned by the model
+    #since it uses the ids from the sorted list of 
+    #all the possible characters
+    output = []
+    province = PROVINCES[target_list[0]]
+    alphabet = ALPHABETS[target_list[1]]
+    output.append(CHAR_IDX[province])
+    output.append(CHAR_IDX[alphabet])
+    for char_idx in range(2,8):
+        char = ADS[char_idx]
+        output.append(CHAR_IDX[char])
+    return output
+
+
+def index_to_target(index_list):
+    output=[]
+    for idx in index_list:
+        output.append(index_list[idx])
+    return output
+
+
 def load_gt_box_from_label_validation(image_path):
     """
     Load the ground truth box from a YOLO-format label file.
