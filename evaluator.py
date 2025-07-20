@@ -15,7 +15,7 @@ class Evaluator:
         self.total_samples = 0
         self.lev_dists = []
 
-    def _greedy_decode(self, logits):
+    def greedy_decode(self, logits):
         # logits: [B, T, C]
         preds = torch.argmax(logits, dim=-1)  # [B, T]
         decoded = []
@@ -33,7 +33,7 @@ class Evaluator:
 
     def update(self, logits, target_strs):
         # logits: [B, T, vocab_size]
-        pred_strs = self._greedy_decode(logits)
+        pred_strs = self.greedy_decode(logits)
 
         for pred, true in zip(pred_strs, target_strs):
             self.total_samples += 1
