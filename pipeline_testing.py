@@ -44,9 +44,6 @@ def test(model_parts, yolo_model, transform, evaluator, test_loader, char_idx, i
 
             images = []
 
-            # Unnormalize (assuming Normalize(mean=0.5, std=0.5))
-            #img_tensor = (img_tensor * 0.5 + 0.5).clamp(0, 1)
-            #pil_img = to_pil_image(img_tensor.cpu())
             # Crop using YOLO
             cropped_img = crop_image_yolo(yolo_model, img)
             if cropped_img is None:
@@ -90,72 +87,6 @@ def test(model_parts, yolo_model, transform, evaluator, test_loader, char_idx, i
     return metrics, predicted_strings
 
 
-def test_pdlpr(model_parts, evaluator, images, label_strs, char_idx, idx_char):
-    igfe, encoder, decoder = model_parts
-
-    igfe.eval()
-    encoder.eval()
-    decoder.eval()
-
-    evaluator = Evaluator(idx2char)
-    pred_strings = []
-
-    with torch.no_grad():
-        for image, label_str in tqdm(zip(images, label_strs), total=len(images), desc="Testing PDLPR"):
-        #image = image.unsqueeze(0).to(device)  # add batch dimension: [1, 3, 48, 144]
-    
-            # Check for unknown characters and update vocab if needed
-            unknown = set(c for c in label_str if c not in char2idx)
-            if unknown:
-                # updating vocabulary
-                for c in ''.join(label_str):
-                    if c not in char_idx:
-                        idx = len(char_idx)
-                        char_idx[c] = idx
-                        idx_char[idx] = c
-                print(f"unknown character {c}. Vocabulary updated")
-                # update the decoder with the new vocabulary size but keeping the old weights
-                decoder.update_vocab_size(len(char_idx))
-            
-            features = igfe(image)
-            encoded = encoder(features)
-            logits = decoder(encoded)
-            evaluator.update(logits, [label_str])  # wrap label in list
-            pred_str = evaluator.greedy_decode(logits)
-            pred_strings.append(pred_str)
-            #print(f"traget string: {label_str},  Predicted: {pred_str}")
-
-    metrics = evaluator.compute()
-    evaluator.print()
-
-    return {
-        "logits": logits,
-        "seq_accuracy": metrics["seq_accuracy"],
-        "char_accuracy": metrics["char_accuracy"],
-        "predicted_strings": pred_strings
-    }
-
-
-#def crop_image_yolo(yolo_model, image_path):
-#    image = Image.open(image_path).convert("RGB")
-#    yolo_results = yolo_model(image)[0]
-#    detection = yolo_results.boxes.xyxy[0]
-#
-#    # Se non ci sono targhe rilevate
-#    if detection.shape[0] == 0:
-#        return []
-#
-#    x1, y1, x2, y2 = detection[0].tolist()
-#    x1, y1, x2, y2 = map(int, detection)
-#    
-#    cropped_img = image.crop((x1, y1, x2, y2))
-#
-#    plt.imshow(cropped_img)
-#    plt.title("Targa rilevata (crop YOLO)")
-#    plt.axis("off")
-#    plt.show()
-#
-#    return cropped_img
 
 def crop_image_yolo(yolo_model, image):
     #image = Image.open(image_path).convert("RGB")
@@ -178,18 +109,6 @@ def crop_image_yolo(yolo_model, image):
 
     return cropped_img
 
-    
-    ##code to convert to plate tensor
-    #with torch.no_grad():
-    #    logits = pdlpr_model(plate_tensor)
-    #    output_probabilities = F.log_softmax(logits, dim=2)
-    #    predictions = torch.argmax(output_probabilities, dim=2)
-    #    pred_text = index_to_target(logits)
-    #
-    #return predicted_plate
-
-#def baseline_pipeline_prediction(cnnctc_model, image_path):
-#    return predicted_plate
 
 if __name__ == "__main__":
     # loading yolo model
@@ -237,24 +156,7 @@ if __name__ == "__main__":
     base_dir = Path("dataset")
     image_paths = Path("dataset/images/test")
     yolo_crop_images = []
-    
-    #if not os.path.exists('cropped_images.pt'):
-    #    print("Cropped images not found. Starting cropping with YOLO")
-    #    for image_path in image_paths.glob("*.jpg"):
-    #        print(f"Found image: {image_path}")
-    #        print(f"Processing: {image_path.name}")
-    #        cropped_image = crop_image_yolo(yolo_model, image_path)
-    #        #apply transformation to the image for pdlpr
-    #        if cropped_image:
-    #            cropped_image = transform(cropped_image).unsqueeze(0).to(device)
-    #            yolo_crop_images.append(cropped_image)
-    #
-    #    torch.save(yolo_crop_images, "cropped_images.pt")
-    #    print("all images cropped using yolo!")
-    #
-    #else:
-    #    print("Images already cropped using yolo. Loading them....")
-    #    yolo_crop_images = torch.load("cropped_images.pt")
+
     
     # Standard transform
     transform = transforms.Compose([
@@ -286,17 +188,6 @@ if __name__ == "__main__":
             label_strs.append(label)
     
     print("First 5 labels:", label_strs[:5])
-    
-    #print("Starting testing pdlpr............")
-    #results = test_pdlpr(
-    #    model_parts=(igfe, encoder, decoder),
-    #    evaluator=evaluator,
-    #    images=yolo_crop_images,
-    #    label_strs=label_strs,
-    #    char_idx=char2idx,
-    #    idx_char=idx2char
-    #)
-    #torch.save(results, "test_yolo_pdlpr_results.pt")
     
     print("start testing.........")
     metrics, predicted_strings = test(
