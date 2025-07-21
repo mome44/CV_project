@@ -1,0 +1,3 @@
+Final testing plate accuracy: 0.0408
+Final testing character accuracy: 0.3932
+Final testing iou score: 0.4166
