@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 import torch
-import pytesseract
+import easyocr
 import os
 from PIL import Image
 from tqdm import tqdm
@@ -9,6 +9,9 @@ from pathlib import Path
 from utils import compute_iou
 from globals import IOU_THRESHOLD
 
+
+# Inizializzare il lettore solo una volta: cinese semplificato e inglese
+reader = easyocr.Reader(['ch_sim', 'en'])
 
 def get_label_yolo(label_path):
     with open(label_path, "r", encoding="utf-8") as f:
@@ -36,8 +39,8 @@ def plate_detector(image_path, true_coordinates):
     # Isolamento delle parti verdi 
     # (le targhe hanno la scritta nera su fondo verde)
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)              # Conversione da RGB a HSV (per filtrare i colori sulla base del tono)
-    lower_green = np.array([35, 40, 40])                    # Range del tono di verde in HSV
-    upper_green = np.array([85, 255, 255])
+    lower_green = np.array([45, 80, 60])                    # Range del tono di verde in HSV
+    upper_green = np.array([75, 255, 255])
     mask = cv2.inRange(hsv, lower_green, upper_green)       # Crea una binary mask
 
     # Morphology
@@ -63,15 +66,21 @@ def plate_detector(image_path, true_coordinates):
             continue
 
         roi = img_rgb[y:y+h, x:x+w]
-        roi_pil = Image.fromarray(roi)
+        result = reader.readtext(roi)
 
-        text = pytesseract.image_to_string(roi_pil, config="--psm 7 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789皖沪津渝冀晋蒙辽吉黑苏浙京闽赣鲁豫鄂湘粤桂琼川贵云藏陕甘青宁新警学O")
-        clean_text = text.strip().replace(" ", "").replace("\n", "")
+        if result:
+            text = result[0][1]
+            conf = result[0][2]
+            clean_text = text.strip().replace(" ", "").replace("\n", "")
+        else:
+            clean_text = ""
+            conf = 0.0
 
         iou = compute_iou([x, y, x+w, y+h], true_coordinates)
         ocr_score = len(clean_text) if len(clean_text) >= 4 else 0
 
-        score = iou + 1 * ocr_score     # OCR pesa di più
+        # score = iou + 1 * ocr_score     # OCR pesa di più
+        score = 1.5 * (ocr_score / 8.0) + 0.5 * iou     # OCR pesa di più ma non ignoro iou
 
         candidates.append({
             "bbox": [x, y, x+w, y+h],
@@ -90,9 +99,9 @@ def plate_detector(image_path, true_coordinates):
 images_dir = Path("dataset/images/train/")
 labels_dir = Path("dataset/labels/train/")
 
-diff_results_dir = Path("baseline_detection_iou")
+diff_results_dir = Path("/results")
 diff_results_dir.mkdir(parents=True, exist_ok=True)
-diff_results_txt = diff_results_dir / "results_iou_ocr.txt"
+diff_results_txt = diff_results_dir / f"BL_iou_ocr_5.txt"
 open(diff_results_txt, "w").close()
 
 total_iou = 0.0
