@@ -26,7 +26,6 @@ def test(model_parts, evaluator, test_loader, char_idx, idx_char, device):
     # keep track of metrics for plot
     test_seq_accs = []
     test_char_accs = []
-    test_lev = []
 
     igfe.eval()
     encoder.eval()
@@ -62,7 +61,6 @@ def test(model_parts, evaluator, test_loader, char_idx, idx_char, device):
             metrics = evaluator.compute()
             test_seq_accs.append(metrics["seq_accuracy"])
             test_char_accs.append(metrics["char_accuracy"])
-            test_lev.append(metrics["avg_levenshtein"])
 
 
     #saving the new vocabulary
@@ -71,7 +69,7 @@ def test(model_parts, evaluator, test_loader, char_idx, idx_char, device):
 
     metrics = evaluator.compute()
     evaluator.print()
-    return metrics, test_char_accs, test_seq_accs, test_lev
+    return metrics, test_char_accs, test_seq_accs
 
 
 # Standard transform
@@ -119,7 +117,7 @@ else:
     print("chackpoint not found. Please train the model first")
 
 print("Starting testing............")
-test_metrics, test_char_accs, test_seq_accs, test_lev = test(
+test_metrics, test_char_accs, test_seq_accs = test(
     model_parts=(igfe, encoder, decoder),
     evaluator=evaluator,
     test_loader=test_loader,
