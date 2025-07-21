@@ -39,8 +39,8 @@ def plate_detector(image_path, true_coordinates):
     # Isolamento delle parti verdi 
     # (le targhe hanno la scritta nera su fondo verde)
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)              # Conversione da RGB a HSV (per filtrare i colori sulla base del tono)
-    lower_green = np.array([45, 80, 60])                    # Range del tono di verde in HSV
-    upper_green = np.array([75, 255, 255])
+    lower_green = np.array([40, 40, 40])                    # Range del tono di verde in HSV
+    upper_green = np.array([80, 255, 255])
     mask = cv2.inRange(hsv, lower_green, upper_green)       # Crea una binary mask
 
     # Morphology
@@ -99,9 +99,9 @@ def plate_detector(image_path, true_coordinates):
 images_dir = Path("dataset/images/train/")
 labels_dir = Path("dataset/labels/train/")
 
-diff_results_dir = Path("/results")
+diff_results_dir = Path("results")
 diff_results_dir.mkdir(parents=True, exist_ok=True)
-diff_results_txt = diff_results_dir / f"BL_iou_ocr_5.txt"
+diff_results_txt = diff_results_dir / f"BL_iou_ocr6.txt"
 open(diff_results_txt, "w").close()
 
 total_iou = 0.0

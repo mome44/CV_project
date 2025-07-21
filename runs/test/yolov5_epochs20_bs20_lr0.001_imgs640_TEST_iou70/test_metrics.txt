@@ -1,4 +1,4 @@
-Model: runs/train/yolov5_epochs30_bs12_lr0.001_imgs640
+Model: runs/train/yolov5_epochs20_bs20_lr0.001_imgs640
 IoU Threshold: 0.7
 
 mAP@0.5:      0.9934

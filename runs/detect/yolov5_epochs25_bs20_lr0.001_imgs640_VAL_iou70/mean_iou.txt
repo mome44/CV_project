@@ -1,0 +1,1 @@
+Mean IoU over validation set: 0.8737
