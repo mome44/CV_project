@@ -102,7 +102,7 @@ BATCH_SIZE = 32
 LR = 0.001
 WEIGHT_DECAY = 0.0001
 NUM_EPOCHS = 60
-SAVE_NAME = f"n_epochs_{NUM_EPOCHS}_bs_{BATCH_SIZE}_LR_{LR}_wd_{WEIGHT_DECAY}_a"
+SAVE_NAME = f"n_epochs_{NUM_EPOCHS}_bs_{BATCH_SIZE}_LR_{LR}_wd_{WEIGHT_DECAY}"
 
 cnn_ctc_model = CNN_CTC_model(num_char=NUM_CHAR, hidden_size=256)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -187,7 +187,7 @@ for image_path in image_paths.glob("*.jpg"):
     plt.imshow(cropped_image, cmap="gray")
     plt.title("cropped plate")
     plt.axis("off")
-    plt.show()
+    #plt.show()
 
     processed_image =preprocess(cropped_image).unsqueeze(0).to(device)
     with torch.no_grad():
