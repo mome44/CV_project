@@ -107,10 +107,12 @@ class CCPDDataset(Dataset):
 
         # apply the transformations
         if self.transform:
+            full_image_original = full_image
             full_image = self.transform(full_image)
             cropped_image = self.transform(cropped_image)
         
         return {
+            'full_image_original': full_image_original,
             'full_image': full_image,
             'cropped_image': cropped_image,
             'yolo_bbox_label': yolo_bbox,

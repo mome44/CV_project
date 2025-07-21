@@ -1,0 +1,9 @@
+Final train accuracy: 0.9365
+Final validation accuracy: 0.9469
+Final character train accuracy: 0.9886
+Final character validation accuracy: 0.9921
+
+TEST (no yolo)
+Character accuracy:  0.9921
+Sequence accuracy:   0.9469
+Avg Levenshtein:     0.06

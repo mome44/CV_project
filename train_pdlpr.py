@@ -15,9 +15,9 @@ import matplotlib.pyplot as plt
 
 label_folder = "dataset/labels_pdlpr/train"
 
-#BATCH_SIZE = 16
-#LR = 1e-4 #0.00001, mostly used
-#NUM_EPOCHS = 5    
+BATCH_SIZE = 16
+LR = 1e-4 #0.00001, mostly used
+NUM_EPOCHS = 5    
 
 #BATCH_SIZE = 32
 #LR = 1e-4
@@ -27,10 +27,10 @@ label_folder = "dataset/labels_pdlpr/train"
 #LR = 1e-3 #0.001
 #NUM_EPOCHS = 5
 
-BATCH_SIZE = 16
-LR = 5e-4 #0.0005
-NUM_EPOCHS = 5
-WEIGHT_DECAY = 0.0001
+#BATCH_SIZE = 16
+#LR = 5e-4 #0.0005
+#NUM_EPOCHS = 5
+#WEIGHT_DECAY = 0.0001
 
 #function that builds the vocabulary (chinese regions)
 def build_vocab(label_folder, file_name, include_blank=True):
