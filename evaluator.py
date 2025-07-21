@@ -64,7 +64,7 @@ class Evaluator:
 
     def update_baseline(self, logits, labels):
         
-        final_predictions = self._greedy_decode_idx(logits)
+        final_predictions = self.greedy_decode_idx(logits)
         for pred_idx_list, label in zip(final_predictions, labels):
             label_list = label.tolist()
             if pred_idx_list == label_list:

@@ -43,6 +43,9 @@ class CCPDDataset(Dataset):
             raise FileNotFoundError(f"No cropped .jpg images found in {self.crops_dir}")
 
         return self
+    
+    def get_image_names(self):
+        return self.image_files
 
 
     def __len__(self):
@@ -116,7 +119,7 @@ class CCPDDataset(Dataset):
             'yolo_bbox_label': yolo_bbox,
             'pdlpr_plate_string': pdlpr_plate_str,
             'pdlpr_plate_idx': pdlpr_label_idx,
-            'image_name': img_name
+            'image_name': img_path.name
         }
 
 

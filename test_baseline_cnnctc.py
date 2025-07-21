@@ -17,10 +17,10 @@ PLATE_LENGTH = 8
 
 NUM_CHAR = len(CHAR_LIST) + 1 #since we include the blank character
 
-BATCH_SIZE = 36
+BATCH_SIZE = 32
 LR = 0.001
 WEIGHT_DECAY = 0.0001
-NUM_EPOCHS = 60
+NUM_EPOCHS = 40
 
 SAVE_NAME = f"n_epochs_{NUM_EPOCHS}_bs_{BATCH_SIZE}_LR_{LR}_wd_{WEIGHT_DECAY}_a"
 model = CNN_CTC_model(num_char=NUM_CHAR, hidden_size=256)
@@ -38,7 +38,11 @@ _, _, test_dataloader = CCPDDataset.get_dataloaders(base_dir="./dataset", batch_
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 #TESTING PHASE
-model.load_state_dict(torch.load(f"models/CNNCTC-{SAVE_NAME}.pth"))
+if os.path.exists(f"models/CNNCTC-{SAVE_NAME}.pth"):
+    model.load_state_dict(torch.load(f"models/CNNCTC-{SAVE_NAME}.pth"))
+    model.to(device)
+else:
+    print("model not found. Please train the model first")
 model.eval()
 test_acc = []
 char_test_acc = []
@@ -63,6 +67,7 @@ with torch.no_grad():
         #metrics for the whole batch
         mean_batch_test_char_acc = metrics["char_accuracy"]
         mean_batch_test_acc = metrics["seq_accuracy"]
+        print(mean_batch_test_acc, mean_batch_test_char_acc)
         test_acc.append(mean_batch_test_acc)
         char_test_acc.append(mean_batch_test_char_acc)
 
