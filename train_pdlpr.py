@@ -15,9 +15,9 @@ import matplotlib.pyplot as plt
 
 label_folder = "dataset/labels_pdlpr/train"
 
-#BATCH_SIZE = 16
-#LR = 1e-4 #0.00001, mostly used
-#NUM_EPOCHS = 5    
+BATCH_SIZE = 16
+LR = 1e-4 #0.00001, mostly used
+NUM_EPOCHS = 5    
 
 #BATCH_SIZE = 32
 #LR = 1e-4
@@ -27,10 +27,10 @@ label_folder = "dataset/labels_pdlpr/train"
 #LR = 1e-3 #0.001
 #NUM_EPOCHS = 5
 
-BATCH_SIZE = 16
-LR = 5e-4 #0.0005
-NUM_EPOCHS = 5
-WEIGHT_DECAY = 0.0001
+#BATCH_SIZE = 16
+#LR = 5e-4 #0.0005
+#NUM_EPOCHS = 5
+#WEIGHT_DECAY = 0.0001
 
 #function that builds the vocabulary (chinese regions)
 def build_vocab(label_folder, file_name, include_blank=True):
@@ -72,7 +72,7 @@ def load_vocab(path="vocab.json"):
     idx_char = {int(v): k for k, v in char_idx.items()}
     return char_idx, idx_char
 
-def plot_metrics(train_seq, val_seq, train_char, val_char, train_lev, val_lev):
+def plot_metrics(train_seq, val_seq, train_char, val_char):
     epochs = range(1, NUM_EPOCHS + 1)
 
     plt.figure()
@@ -95,15 +95,6 @@ def plot_metrics(train_seq, val_seq, train_char, val_char, train_lev, val_lev):
     plt.grid(True)
     plt.savefig(f"metrics_images/char_accs_plot{NUM_EPOCHS}_{LR}_{BATCH_SIZE}.png", dpi=300)
 
-    plt.figure()
-    plt.plot(epochs, [l.detach().cpu().item() if torch.is_tensor(l) else l for l in train_lev], label="Train Levenshtein distance")
-    plt.plot(epochs, [l.detach().cpu().item() if torch.is_tensor(l) else l for l in val_lev], label="Val Levenshtein distance")
-    plt.title("Levenshtein distance over Epochs")
-    plt.xlabel("Epoch")
-    plt.ylabel("Lev distance")
-    plt.legend()
-    plt.grid(True)
-    plt.savefig(f"metrics_images/levenshtein_plot{NUM_EPOCHS}_{LR}_{BATCH_SIZE}.png", dpi=300)
 
 def train(model_parts, evaluator, train_loader, val_loader, char_idx, idx_char, num_epochs, optimizer ,device):
 
@@ -113,11 +104,9 @@ def train(model_parts, evaluator, train_loader, val_loader, char_idx, idx_char, 
     train_losses = []
     train_seq_accs = []
     train_char_accs = []
-    train_lev = []
 
     val_char_accs = []
     val_seq_accs = [] 
-    val_lev = [] 
     
     for epoch in range(num_epochs):
         evaluator = Evaluator(idx2char=idx_char)
@@ -168,7 +157,6 @@ def train(model_parts, evaluator, train_loader, val_loader, char_idx, idx_char, 
         metrics = evaluator.compute()
         train_seq_accs.append(metrics["seq_accuracy"])
         train_char_accs.append(metrics["char_accuracy"])
-        train_lev.append(metrics["avg_levenshtein"])
     
     
         #saving the new vocabulary
@@ -187,7 +175,6 @@ def train(model_parts, evaluator, train_loader, val_loader, char_idx, idx_char, 
     )
         val_seq_accs.append(val_metrics["seq_accuracy"])
         val_char_accs.append(val_metrics["char_accuracy"])
-        val_lev.append(val_metrics["avg_levenshtein"])
     
     #Saving the model for testing, the models will have as input the images cropped by YOLO 
     torch.save({
@@ -198,8 +185,7 @@ def train(model_parts, evaluator, train_loader, val_loader, char_idx, idx_char, 
             'loss': total_loss,
             'train_losses': train_losses,
             'train_seq_accs': train_seq_accs,
-            'train_char_accs': train_char_accs,
-            'train_lev': train_lev
+            'train_char_accs': train_char_accs
         }, f'PLDPR/checkpoints/pdlpr_{NUM_EPOCHS}_{LR}_{BATCH_SIZE}.pt')
     print("Model saved in PLDPR/checkpoints/pdlpr_final.pt")
 
@@ -231,9 +217,9 @@ def train(model_parts, evaluator, train_loader, val_loader, char_idx, idx_char, 
 
     # plot train and validation metrics
     print("Plotting metrics.........")
-    plot_metrics(train_seq_accs, val_seq_accs, train_char_accs, val_char_accs, train_lev, val_lev)
+    plot_metrics(train_seq_accs, val_seq_accs, train_char_accs, val_char_accs)
 
-    return train_losses, train_seq_accs, train_char_accs, train_lev
+    return train_losses, train_seq_accs, train_char_accs
     
 def validate(model_parts, evaluator, val_loader, char_idx, idx_char, device):
     igfe, encoder, decoder = model_parts
@@ -310,7 +296,7 @@ if __name__ == "__main__":
     optimizer = optim.Adam(params, lr=LR, weight_decay=0.0001)
     
     print("Starting training..........")
-    train_char_accs, train_seq_accs, train_lev, train_losses = train(
+    train_char_accs, train_seq_accs, train_losses = train(
         model_parts=(igfe, encoder, decoder),
         evaluator=evaluator,
         train_loader=train_loader,
