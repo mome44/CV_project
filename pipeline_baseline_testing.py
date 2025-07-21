@@ -213,7 +213,7 @@ for image_path in image_paths.glob("*.jpg"):
 
 mean_char_acc = sum(char_accuracies) / len(char_accuracies)
 mean_plate_acc = sum(plate_accuracies)/len(plate_accuracies)
-mean_iou = sum(iou_scores)/len(iou)
+mean_iou = sum(iou_scores)/len(iou_scores)
 print(f"Pipeline test result plate accuracy: {mean_plate_acc:.4f}")
 print(f"Pipeline test result char accuracy: {mean_char_acc:.4f}")
 print(f"Pipeline test result iou score: {mean_iou:.4f}")

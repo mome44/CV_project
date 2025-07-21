@@ -152,18 +152,14 @@ if __name__ == "__main__":
         transforms.Normalize(mean=[0.5]*3, std=[0.5]*3)
     ])
     
+    #transform_simple = transform.Compse([
+    #    transforms.ToTensor()
+    #])
     # crop images with YOLO
     base_dir = Path("dataset")
     image_paths = Path("dataset/images/test")
     yolo_crop_images = []
 
-    
-    # Standard transform
-    transform = transforms.Compose([
-        transforms.Resize((48, 144)),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.5]*3, std=[0.5]*3)
-    ])
     
     # Load data
     dataset = CCPDDataset(base_dir="dataset", transform=transform)
