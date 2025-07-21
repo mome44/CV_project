@@ -17,7 +17,9 @@ label_folder = "dataset/labels_pdlpr/train"
 
 BATCH_SIZE = 16
 LR = 1e-4 #0.00001, mostly used
-NUM_EPOCHS = 5    
+
+NUM_EPOCHS = 10    
+
 
 #BATCH_SIZE = 32
 #LR = 1e-4
@@ -33,6 +35,13 @@ NUM_EPOCHS = 5
 #WEIGHT_DECAY = 0.0001
 
 #function that builds the vocabulary (chinese regions)
+
+def custom_collate(batch):
+    return {
+        "cropped_image": torch.stack([item["cropped_image"] for item in batch]),
+        "pdlpr_plate_string": [item["pdlpr_plate_string"] for item in batch],
+        # add other fields as needed
+    }
 def build_vocab(label_folder, file_name, include_blank=True):
     vocab = set()
 
@@ -197,11 +206,18 @@ def train(model_parts, evaluator, train_loader, val_loader, char_idx, idx_char, 
     print(f"Loss: {total_loss / len(train_loader):.4f}")
     evaluator.print()
 
+
+    train_seq_accuracy = metrics['seq_accuracy']
+    val_seq_accuracy = val_metrics["seq_accuracy"]
+    train_char_accuracy = metrics['char_accuracy']
+    val_char_accuracy = metrics['char_accuracy']
+
     with open(f"results/PDLPR-{NUM_EPOCHS}_{LR}_{BATCH_SIZE}.txt", "w") as f:
-        f.write(f"Final train accuracy: {metrics["seq_accuracy"]:.4f}\n")
-        f.write(f"Final validation accuracy: {val_metrics["seq_accuracy"]:.4f}\n")
-        f.write(f"Final character train accuracy: {metrics["char_accuracy"]:.4f}\n")
-        f.write(f"Final character validation accuracy: {val_metrics["char_accuracy"]:.4f}\n")
+        f.write(f"Final train accuracy: {train_seq_accuracy:.4f}\n")
+        f.write(f"Final validation accuracy: {val_seq_accuracy:.4f}\n")
+        f.write(f"Final character train accuracy: {train_char_accuracy:.4f}\n")
+        f.write(f"Final character validation accuracy: {val_char_accuracy:.4f}\n")
+
     print(f"results saved in results/PDLPR-{NUM_EPOCHS}_{LR}_{BATCH_SIZE}.txt")
 
     # plot loss over epochs
@@ -266,12 +282,15 @@ if __name__ == "__main__":
     ])
     
     # loading data
+
     dataset = CCPDDataset(base_dir="dataset", transform=transform)
     train_loader, val_loader, test_loader = CCPDDataset.get_dataloaders(
         base_dir="./dataset",
         batch_size=BATCH_SIZE,
-        transform=transform
+        transform=transform,
+        collate_fn= custom_collate
     )
+    
     
     
     if not os.path.exists('vocab.json'):

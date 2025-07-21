@@ -158,13 +158,6 @@ if __name__ == "__main__":
     yolo_crop_images = []
 
     
-    # Standard transform
-    transform = transforms.Compose([
-        transforms.Resize((48, 144)),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.5]*3, std=[0.5]*3)
-    ])
-    
     # Load data
     dataset = CCPDDataset(base_dir="dataset", transform=transform)
     _, _, test_loader = CCPDDataset.get_dataloaders(

@@ -125,12 +125,12 @@ class CCPDDataset(Dataset):
         }
 
 
-    def get_dataloaders(base_dir, batch_size = 8, transform = None):
+    def get_dataloaders(base_dir, batch_size = 8, transform = None, collate_fn = None):
         #this functions initializes the different dataloaders and returns them
         ds = CCPDDataset(base_dir=base_dir, transform=transform)
 
-        train_loader = DataLoader(ds.get_dataset("train"), batch_size=batch_size, shuffle=True)
-        val_loader = DataLoader(ds.get_dataset("val"), batch_size=batch_size, shuffle=False)
-        test_loader = DataLoader(ds.get_dataset("test"), batch_size=batch_size, shuffle=False)
+        train_loader = DataLoader(ds.get_dataset("train"), batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
+        val_loader = DataLoader(ds.get_dataset("val"), batch_size=batch_size, shuffle=False, collate_fn=collate_fn )
+        test_loader = DataLoader(ds.get_dataset("test"), batch_size=batch_size, shuffle=False, collate_fn=collate_fn)
 
         return train_loader, val_loader, test_loader
