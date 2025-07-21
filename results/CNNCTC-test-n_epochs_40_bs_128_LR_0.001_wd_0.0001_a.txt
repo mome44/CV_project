@@ -1,2 +1,0 @@
-Final testing accuracy: 0.7145
-Final testing character accuracy: 0.8243

@@ -34,7 +34,7 @@ for bs, lr, wd, ne in combinations:
     WEIGHT_DECAY = wd
     NUM_EPOCHS = ne
 
-    SAVE_NAME = f"n_epochs_{NUM_EPOCHS}_bs_{BATCH_SIZE}_LR_{LR}_wd_{WEIGHT_DECAY}_a"
+    SAVE_NAME = f"n_epochs_{NUM_EPOCHS}_bs_{BATCH_SIZE}_LR_{LR}_wd_{WEIGHT_DECAY}"
 
     print(f"training with {SAVE_NAME}")
     
@@ -42,14 +42,18 @@ for bs, lr, wd, ne in combinations:
     ctc_loss = nn.CTCLoss(blank=0) 
 
     preprocess = transforms.Compose([
-        transforms.Grayscale(),              # converte in 1 canale
-        transforms.Resize((48, 144)),       # adatta a H=48, W=144
-        transforms.ToTensor(),              # [C, H, W]
-        transforms.Normalize((0.5,), (0.5,))
-    ])
+            transforms.Grayscale(),              # converte in 1 canale
+            transforms.Resize((48, 144)),       # adatta a H=48, W=144
+            transforms.ToTensor(),              # [C, H, W]
+            transforms.Normalize((0.5,), (0.5,))
+        ])
     
     
-    train_dataloader, val_dataloader, test_dataloader = CCPDDataset.get_dataloaders(base_dir="./dataset", batch_size=BATCH_SIZE, transform=preprocess)
+    train_dataloader, val_dataloader, test_dataloader = CCPDDataset.get_dataloaders(
+        base_dir="./dataset",
+        batch_size=BATCH_SIZE,
+        transform=preprocess
+    )
      #this optimizer uses stochastic gradient descent and has in input the parameters (weights) from 
     #the pretrained model
     optimizer = Adam(model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
@@ -122,8 +126,8 @@ for bs, lr, wd, ne in combinations:
             #metrics for the whole batch
             mean_batch_train_char_acc = metrics["char_accuracy"]
             mean_batch_train_acc = metrics["seq_accuracy"]
-            print(mean_batch_train_char_acc)
-            print(mean_batch_train_acc)
+            #print(mean_batch_train_char_acc)
+            #print(mean_batch_train_acc)
             train_acc.append(mean_batch_train_acc)
             train_char_acc.append(mean_batch_train_char_acc)
             
@@ -166,14 +170,14 @@ for bs, lr, wd, ne in combinations:
                 #metrics for the whole batch
                 mean_batch_val_char_acc = metrics["char_accuracy"]
                 mean_batch_val_acc = metrics["seq_accuracy"]
-                print(mean_batch_val_char_acc)
-                print(mean_batch_val_acc)
+                #print(mean_batch_val_char_acc)
+                #print(mean_batch_val_acc)
                 val_acc.append(mean_batch_val_acc)
                 val_char_acc.append(mean_batch_val_char_acc)
     
                 j+=1
 
-        #compute the mean of the accuracy validation score
+        #compute the mean of the iou validation score
         mean_val_acc = sum(val_acc)/len(val_acc)
         mean_val_char_acc = sum(val_char_acc)/len(val_char_acc)
 
@@ -211,7 +215,7 @@ for bs, lr, wd, ne in combinations:
     #plt.show()
     plt.savefig(f"metrics_images/char_train_validation_CNNCTC-{SAVE_NAME}.png")
 
-    #getting the last accuracy value for train and validation
+    #getting the last iou value for train and validation
     final_train_acc = accuracy_train[-1]
     final_val_acc = accuracy_val[-1]
 
@@ -224,4 +228,46 @@ for bs, lr, wd, ne in combinations:
         f.write(f"Final character train accuracy: {final_char_train_acc:.4f}\n")
         f.write(f"Final character validation accuracy: {final_char_val_acc:.4f}\n")
 
+    #TESTING PHASE
+    model.load_state_dict(torch.load(f"models/CNNCTC-{SAVE_NAME}.pth"))
+
+    model.eval()
+    test_acc = []
+    char_test_acc = []
+    
+    evaluator = Evaluator()
+    #here we just loop throught the test data and compute the Iou score
+    with torch.no_grad():
+        for batch in test_dataloader:
+            images = batch["cropped_image"]
+            labels = batch["pdlpr_plate_idx"]
+
+            images = [img.to(device) for img in images]
+            labels = [lab.to(device) for lab in labels]
+            images = torch.stack(images)         
+            labels = torch.stack(labels)
+            flat_labels_list = labels.view(-1)  
+             
+            output_logits = model(images)                      
+            output_probabilities = F.log_softmax(output_logits, dim=2)
+            evaluator.reset()
+            evaluator.update_baseline(output_logits, labels)
+
+            metrics = evaluator.compute()
+
+            #metrics for the whole batch
+            mean_batch_test_char_acc = metrics["char_accuracy"]
+            mean_batch_test_acc = metrics["seq_accuracy"]
+            test_acc.append(mean_batch_test_acc)
+            char_test_acc.append(mean_batch_test_char_acc)
+
+    mean_acc = sum(test_acc) / len(test_acc)
+    mean_char_acc = sum(char_test_acc)/len(char_test_acc)
+    print(f"Test result accuracy: {mean_acc:.4f}")
+    print(f"Test result char accuracy: {mean_char_acc:.4f}")
+
+    #saving the iou result of the training, validation (last step) and testing
+    with open(f"results/CNNCTC-test-{SAVE_NAME}.txt", "w") as f:
+        f.write(f"Final testing accuracy: {mean_acc:.4f}\n")
+        f.write(f"Final testing character accuracy: {mean_char_acc:.4f}\n")
   
