@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 
 #DEFINITION MODEL CLASSES FOR PDLPR
 
-  #igfe feature extractor
+#igfe feature extractor
 class FocusStructure(nn.Module):
     def __init__(self, in_channels=3, out_channels=64):
         super(FocusStructure, self).__init__()

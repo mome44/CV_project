@@ -2,14 +2,10 @@ import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import matplotlib.pyplot as plt
-from itertools import product
 from data import CCPDDataset
 from network import CNN_CTC_model
-from torch.optim import Adam, SGD
 from globals import *
 from utils import *
-from evaluator import Evaluator
 from torchvision import transforms
 
 CHAR_LIST = sorted(set(PROVINCES+ALPHABETS+ADS))
@@ -33,7 +29,7 @@ preprocess = transforms.Compose([
     transforms.Normalize((0.5,), (0.5,))
 ])
 
-_, _, test_dataloader = CCPDDataset.get_dataloaders(base_dir="./dataset", batch_size=BATCH_SIZE, transform=preprocess)
+_, _, test_dataloader = CCPDDataset.get_dataloaders(base_dir="./dataset", batch_size=BATCH_SIZE, transform=preprocess, collate_fn=custom_collate_2)
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -67,7 +63,7 @@ with torch.no_grad():
         #metrics for the whole batch
         mean_batch_test_char_acc = metrics["char_accuracy"]
         mean_batch_test_acc = metrics["seq_accuracy"]
-        print(mean_batch_test_acc, mean_batch_test_char_acc)
+        #print(mean_batch_test_acc, mean_batch_test_char_acc)
         test_acc.append(mean_batch_test_acc)
         char_test_acc.append(mean_batch_test_char_acc)
 

@@ -6,10 +6,9 @@ import matplotlib.pyplot as plt
 from itertools import product
 from data import CCPDDataset
 from network import CNN_CTC_model
-from torch.optim import Adam, SGD
+from torch.optim import Adam
 from globals import *
 from utils import *
-from evaluator import Evaluator
 from torchvision import transforms
 
 #Hyperparameters combination
@@ -49,7 +48,7 @@ for bs, lr, wd, ne in combinations:
     ])
     
     
-    train_dataloader, val_dataloader, test_dataloader = CCPDDataset.get_dataloaders(base_dir="./dataset", batch_size=BATCH_SIZE, transform=preprocess)
+    train_dataloader, val_dataloader, test_dataloader = CCPDDataset.get_dataloaders(base_dir="./dataset", batch_size=BATCH_SIZE, transform=preprocess, collate_fn=custom_collate_2)
      #this optimizer uses stochastic gradient descent and has in input the parameters (weights) from 
     #the pretrained model
     optimizer = Adam(model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
@@ -122,8 +121,8 @@ for bs, lr, wd, ne in combinations:
             #metrics for the whole batch
             mean_batch_train_char_acc = metrics["char_accuracy"]
             mean_batch_train_acc = metrics["seq_accuracy"]
-            print(mean_batch_train_char_acc)
-            print(mean_batch_train_acc)
+            #print(mean_batch_train_char_acc)
+            #print(mean_batch_train_acc)
             train_acc.append(mean_batch_train_acc)
             train_char_acc.append(mean_batch_train_char_acc)
             
@@ -166,8 +165,8 @@ for bs, lr, wd, ne in combinations:
                 #metrics for the whole batch
                 mean_batch_val_char_acc = metrics["char_accuracy"]
                 mean_batch_val_acc = metrics["seq_accuracy"]
-                print(mean_batch_val_char_acc)
-                print(mean_batch_val_acc)
+                #print(mean_batch_val_char_acc)
+                #print(mean_batch_val_acc)
                 val_acc.append(mean_batch_val_acc)
                 val_char_acc.append(mean_batch_val_char_acc)
     

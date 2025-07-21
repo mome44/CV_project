@@ -8,6 +8,11 @@ LR_INIT_Y           = 0.001     # initial learning rate
 # LR_END_Y            = 0.00001   # final learning rate
 # DECAY_Y             = 0.003
 
+
+BATCH_SIZE_PDLPR = 16
+LR_PDLPR = 1e-4 #0.00001, mostly used
+NUM_EPOCHS_PDLPR = 10  
+
 IOU_THRESHOLD       = 0.7
 
 #character mapping used for the chinese plates

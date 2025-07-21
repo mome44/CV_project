@@ -2,15 +2,11 @@ from pathlib import Path
 import torch
 import os
 from PIL import Image  
-from evaluator import Evaluator
 from torchvision import transforms
-from torchvision.transforms.functional import to_pil_image
 from globals import *
 from utils import *
 from network import CNN_CTC_model
 import matplotlib.pyplot as plt
-from data import CCPDDataset
-from tqdm import tqdm
 #from baseline_detection import plate_detector
 import cv2
 import numpy as np
@@ -18,7 +14,6 @@ import torch
 import easyocr
 import os
 from PIL import Image
-from tqdm import tqdm
 from pathlib import Path
 from utils import compute_iou
 

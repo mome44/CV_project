@@ -1,109 +1,21 @@
+import json
 import torch
 import torchvision.transforms as transforms
 import os
-from igfe import IGFE
-from encoder import PDLPR_Encoder
-from decoder import ParallelDecoder
-from evaluator import Evaluator
+from network import *
+from utils import *
+from globals import *
 from data import CCPDDataset
 import torch.nn as nn
 import torch.optim as optim
 import matplotlib.pyplot as plt
 from tqdm import tqdm
-import json
 import matplotlib.pyplot as plt
 
-label_folder = "dataset/labels_pdlpr/train"
+label_folder = "dataset/labels_pdlpr/train"  
 
-BATCH_SIZE = 16
-LR = 1e-4 #0.00001, mostly used
-
-NUM_EPOCHS = 10    
-
-
-#BATCH_SIZE = 32
-#LR = 1e-4
-#NUM_EPOCHS = 5
-
-#BATCH_SIZE = 16
-#LR = 1e-3 #0.001
-#NUM_EPOCHS = 5
-
-#BATCH_SIZE = 16
-#LR = 5e-4 #0.0005
-#NUM_EPOCHS = 5
-#WEIGHT_DECAY = 0.0001
 
 #function that builds the vocabulary (chinese regions)
-
-def custom_collate(batch):
-    return {
-        "cropped_image": torch.stack([item["cropped_image"] for item in batch]),
-        "pdlpr_plate_string": [item["pdlpr_plate_string"] for item in batch],
-        # add other fields as needed
-    }
-def build_vocab(label_folder, file_name, include_blank=True):
-    vocab = set()
-
-    for filename in os.listdir(label_folder):
-        if not filename.endswith(".txt"):
-            continue
-        with open(os.path.join(label_folder, filename), "r", encoding="utf-8") as f:
-            label = f.read().strip().upper()
-            vocab.update(label)
-
-    vocab = sorted(vocab)
-
-    char_idx = {}
-    idx_char = {}
-    start_idx = 0
-
-    if include_blank:
-        char_idx["-"] = 0  # CTC blank
-        idx_char[0] = "-"
-        start_idx = 1
-
-    for i, ch in enumerate(vocab, start=start_idx):
-        char_idx[ch] = i
-        idx_char[i] = ch
-
-    with open(file_name, "w", encoding="utf-8") as f:
-        json.dump(char_idx, f, ensure_ascii=False, indent=2)
-    
-    # saving the vocabulary for later
-    print(f"[vocab] Built vocabulary with {len(char_idx)} characters.")
-    return char_idx, idx_char
-
-# function to load the vocabulary
-def load_vocab(path="vocab.json"):
-    with open(path, "r", encoding="utf-8") as f:
-        char_idx = json.load(f)
-    idx_char = {int(v): k for k, v in char_idx.items()}
-    return char_idx, idx_char
-
-def plot_metrics(train_seq, val_seq, train_char, val_char):
-    epochs = range(1, NUM_EPOCHS + 1)
-
-    plt.figure()
-    plt.plot(epochs, [l.detach().cpu().item() if torch.is_tensor(l) else l for l in train_seq], label="Train Seq Accuracy")
-    plt.plot(epochs, [l.detach().cpu().item() if torch.is_tensor(l) else l for l in val_seq], label="Val Seq Accuracy")
-    plt.title("Sequence Accuracy over Epochs")
-    plt.xlabel("Epoch")
-    plt.ylabel("Accuracy")
-    plt.legend()
-    plt.grid(True)
-    plt.savefig(f"metrics_images/seq_accs_plot_{NUM_EPOCHS}_{LR}_{BATCH_SIZE}.png", dpi=300)
-
-    plt.figure()
-    plt.plot(epochs, [l.detach().cpu().item() if torch.is_tensor(l) else l for l in train_char], label="Train Char Accuracy")
-    plt.plot(epochs, [l.detach().cpu().item() if torch.is_tensor(l) else l for l in val_char], label="Val Char Accuracy")
-    plt.title("Char Accuracy over Epochs")
-    plt.xlabel("Epoch")
-    plt.ylabel("Accuracy")
-    plt.legend()
-    plt.grid(True)
-    plt.savefig(f"metrics_images/char_accs_plot{NUM_EPOCHS}_{LR}_{BATCH_SIZE}.png", dpi=300)
-
 
 def train(model_parts, evaluator, train_loader, val_loader, char_idx, idx_char, num_epochs, optimizer ,device):
 
@@ -195,14 +107,14 @@ def train(model_parts, evaluator, train_loader, val_loader, char_idx, idx_char, 
             'train_losses': train_losses,
             'train_seq_accs': train_seq_accs,
             'train_char_accs': train_char_accs
-        }, f'PLDPR/checkpoints/pdlpr_{NUM_EPOCHS}_{LR}_{BATCH_SIZE}.pt')
-    print("Model saved in PLDPR/checkpoints/pdlpr_final.pt")
+        }, f'models/pdlpr_{NUM_EPOCHS_PDLPR}_{LR_PDLPR}_{BATCH_SIZE_PDLPR}.pt')
+    print("Model saved in models/pdlpr_final.pt")
 
     print("END OF TRAINING, results:\n")
 
     print(f"number of epochs: {num_epochs}")
-    print(f"learning rate: {LR}")
-    print(f"batch size: {BATCH_SIZE}")
+    print(f"learning rate: {LR_PDLPR}")
+    print(f"batch size: {BATCH_SIZE_PDLPR}")
     print(f"Loss: {total_loss / len(train_loader):.4f}")
     evaluator.print()
 
@@ -212,13 +124,13 @@ def train(model_parts, evaluator, train_loader, val_loader, char_idx, idx_char, 
     train_char_accuracy = metrics['char_accuracy']
     val_char_accuracy = metrics['char_accuracy']
 
-    with open(f"results/PDLPR-{NUM_EPOCHS}_{LR}_{BATCH_SIZE}.txt", "w") as f:
+    with open(f"results/PDLPR-{NUM_EPOCHS_PDLPR}_{LR_PDLPR}_{BATCH_SIZE_PDLPR}.txt", "w") as f:
         f.write(f"Final train accuracy: {train_seq_accuracy:.4f}\n")
         f.write(f"Final validation accuracy: {val_seq_accuracy:.4f}\n")
         f.write(f"Final character train accuracy: {train_char_accuracy:.4f}\n")
         f.write(f"Final character validation accuracy: {val_char_accuracy:.4f}\n")
 
-    print(f"results saved in results/PDLPR-{NUM_EPOCHS}_{LR}_{BATCH_SIZE}.txt")
+    print(f"results saved in results/PDLPR-{NUM_EPOCHS_PDLPR}_{LR_PDLPR}_{BATCH_SIZE_PDLPR}.txt")
 
     # plot loss over epochs
     epochs = range(1, len(train_losses)+1)
@@ -229,7 +141,7 @@ def train(model_parts, evaluator, train_loader, val_loader, char_idx, idx_char, 
     plt.ylabel("CTC Loss")
     plt.legend()
     plt.grid(True)
-    plt.savefig(f"metrics_images/loss_plot_{num_epochs}_{LR}_{BATCH_SIZE}.png", dpi=300)
+    plt.savefig(f"metrics_images/loss_plot_{num_epochs}_{LR_PDLPR}_{BATCH_SIZE_PDLPR}.png", dpi=300)
 
     # plot train and validation metrics
     print("Plotting metrics.........")
@@ -286,11 +198,10 @@ if __name__ == "__main__":
     dataset = CCPDDataset(base_dir="dataset", transform=transform)
     train_loader, val_loader, test_loader = CCPDDataset.get_dataloaders(
         base_dir="./dataset",
-        batch_size=BATCH_SIZE,
+        batch_size=BATCH_SIZE_PDLPR,
         transform=transform,
         collate_fn= custom_collate
     )
-    
     
     
     if not os.path.exists('vocab.json'):
@@ -312,7 +223,7 @@ if __name__ == "__main__":
     
     # TRAINING
     params = list(igfe.parameters()) + list(encoder.parameters()) + list(decoder.parameters())
-    optimizer = optim.Adam(params, lr=LR, weight_decay=0.0001)
+    optimizer = optim.Adam(params, lr=LR_PDLPR, weight_decay=0.0001)
     
     print("Starting training..........")
     train_char_accs, train_seq_accs, train_losses = train(
@@ -322,7 +233,7 @@ if __name__ == "__main__":
         val_loader=val_loader,
         char_idx=char_idx,
         idx_char=idx_char,
-        num_epochs=NUM_EPOCHS,
+        num_epochs=NUM_EPOCHS_PDLPR,
         optimizer=optimizer,
         device=device
     )

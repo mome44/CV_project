@@ -27,7 +27,10 @@ These file are the testing for the single individual part
 - test_baseline_cnnctc.py: testing for baseline CNNCTC method.
 - test_pdlpr.py: testing for pdlpr
 - test_baseline_traditional.py: testing for the plate detection using traditional techniques, this doesn't require training so it does not have the train file counterpart.
-- test_yolo.py:
+- test_yolo.py: testing for yolo
+
+### Other files
+- baseline_detection.py: here we use traitional techniques like Canny edge detector to do plate detection. This does not require any training. We compute the average intersection over union over all the predictions.
 
 Then there are two files that implements two pipelines, that test the two methods (Yolov5 + pdlpr) and (traditional + cnnctc) by considering one image at a time, segmenting it and then inputting it directly to the character detection to make the final prediction.
 

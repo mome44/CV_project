@@ -1,99 +1,15 @@
-import cv2
-import numpy as np
-import torch
 import easyocr
 import os
 from PIL import Image
 from tqdm import tqdm
 from pathlib import Path
-from utils import compute_iou
-from globals import IOU_THRESHOLD
-
+from utils import *
+from network import*
+from globals import *
+from data import *
 
 # Inizializzare il lettore solo una volta: cinese semplificato e inglese
 reader = easyocr.Reader(['ch_sim', 'en'])
-
-def get_label_yolo(label_path):
-    with open(label_path, "r", encoding="utf-8") as f:
-        line = f.readline().strip()
-    parts = list(map(float, line.split()))
-    return torch.tensor(parts[1:], dtype=torch.float32)     # x, y, width, height
-
-
-def get_ground_truth_coordinates(yolo_tensor, image_width, image_height):
-        cx, cy, w, h = yolo_tensor.tolist()
-
-        x_min = (cx - w / 2) * image_width
-        y_min = (cy - h / 2) * image_height
-        x_max = (cx + w / 2) * image_width
-        y_max = (cy + h / 2) * image_height
-
-        return [x_min, y_min, x_max, y_max]
-
-
-def plate_detector(image_path, true_coordinates):
-    # Carica immagine
-    img = cv2.imread(str(image_path))
-    img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-
-    # Isolamento delle parti verdi 
-    # (le targhe hanno la scritta nera su fondo verde)
-    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)              # Conversione da RGB a HSV (per filtrare i colori sulla base del tono)
-    lower_green = np.array([40, 40, 40])                    # Range del tono di verde in HSV
-    upper_green = np.array([80, 255, 255])
-    mask = cv2.inRange(hsv, lower_green, upper_green)       # Crea una binary mask
-
-    # Morphology
-    # L'edge detector mi ritorna una serie di tanti contorni frammentati, 
-    # devo usare operazioni morfologiche per unire linee che sono vicine tra loro
-    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
-    cleaned_mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
-
-    # Edge detector --> Canny
-    edges = cv2.Canny(cleaned_mask, 100, 200)
-
-    # Trova i bordi
-    contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-    # Geometric filter + controllo con OCR per vedere se ci sono numeri/lettere
-    # Scartare le regiorni che non sono targe
-    candidates = []
-    for cnt in contours:
-        x, y, w, h = cv2.boundingRect(cnt)
-        aspect_ratio = w / float(h)
-        area = w * h
-        if not (2.5 < aspect_ratio < 6 and 1000 < area < 40000):
-            continue
-
-        roi = img_rgb[y:y+h, x:x+w]
-        result = reader.readtext(roi)
-
-        if result:
-            text = result[0][1]
-            conf = result[0][2]
-            clean_text = text.strip().replace(" ", "").replace("\n", "")
-        else:
-            clean_text = ""
-            conf = 0.0
-
-        iou = compute_iou([x, y, x+w, y+h], true_coordinates)
-        ocr_score = len(clean_text) if len(clean_text) >= 4 else 0
-
-        # score = iou + 1 * ocr_score     # OCR pesa di più
-        score = 1.5 * (ocr_score / 8.0) + 0.5 * iou     # OCR pesa di più ma non ignoro iou
-
-        candidates.append({
-            "bbox": [x, y, x+w, y+h],
-            "text": clean_text,
-            "score": score
-        })
-
-    if not candidates:
-        return None
-
-    best = max(candidates, key=lambda c: c["score"])
-    return best["bbox"], best["text"]
-
 
 
 images_dir = Path("dataset/images/train/")
@@ -147,7 +63,7 @@ for image_path in tqdm(images_dir.glob("*.jpg"), desc="Processing images", unit=
     if iou_diff >= IOU_THRESHOLD:
         num_passed_iou += 1
 
-    with open(diff_results_txt, "a") as f:
+    with open(diff_results_txt, "a", encoding="utf-8") as f:
         f.write(f"{image_name}\n")
         f.write(f"IoU: {iou_diff:.3f}\n")
         f.write(f"OCR: {ocr_text}\n")

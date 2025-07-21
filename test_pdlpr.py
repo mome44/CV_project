@@ -1,23 +1,13 @@
-import sys
 import torch
 import torchvision.transforms as transforms
-from PIL import Image
 import os
-from igfe import IGFE
-from encoder import PDLPR_Encoder
-from decoder import ParallelDecoder
-from evaluator import Evaluator
-from train_pdlpr import build_vocab, load_vocab
+from network import *
+from utils import *
 from data import CCPDDataset
 import torch.nn as nn
-import torch.optim as optim
-import string
-import matplotlib.pyplot as plt
 from torchvision import transforms
 from tqdm import tqdm
 import json
-import matplotlib.pyplot as plt
-from torchvision.transforms.functional import to_pil_image
 
 
 def test(model_parts, evaluator, test_loader, char_idx, idx_char, device):
@@ -84,7 +74,8 @@ dataset = CCPDDataset(base_dir="dataset", transform=transform)
 _, _, test_loader = CCPDDataset.get_dataloaders(
     base_dir="./dataset",
     batch_size=16,
-    transform=transform
+    transform=transform,
+    collate_fn= custom_collate
 )
 
 if os.path.exists('vocab.json'):
@@ -105,9 +96,9 @@ encoder = PDLPR_Encoder().to(device).train()
 igfe = IGFE().to(device).train()
 
 # load pre trained model if needed
-if os.path.exists( f'PLDPR/checkpoints/pdlpr_5_0.0001_16.pt'):
+if os.path.exists( f'models/pdlpr_5_0.0001_16.pt'):
     print("checkpoint found. Loading state dict......")
-    checkpoint = torch.load( f'PLDPR/checkpoints/pdlpr_5_0.0001_16.pt', map_location=device)
+    checkpoint = torch.load( f'models/pdlpr_5_0.0001_16.pt', map_location=device)
     igfe.load_state_dict(checkpoint["igfe_state_dict"])
     encoder.load_state_dict(checkpoint["encoder_state_dict"])
     decoder.load_state_dict(checkpoint["decoder_state_dict"])

@@ -1,23 +1,14 @@
 from ultralytics import YOLO
 from pathlib import Path
-from globals import BATCH_SIZE_TRAIN_Y, LR_INIT_Y, EPOCHS_TRAIN_Y, IMAGE_SIZE_Y, IOU_THRESHOLD
-#from utils import  index_to_target
-from PIL import Image
+from globals import *
 import torch
 import os
 from pathlib import Path
-from PIL import Image       # used to read image size
 from tqdm import tqdm
-import matplotlib.pyplot as plt
-from train_pdlpr import load_vocab, build_vocab
-from igfe import IGFE
-from encoder import PDLPR_Encoder
-from decoder import ParallelDecoder
-from evaluator import Evaluator
-import torch.nn as nn
+from utils import *
+from network import *
 from torchvision import transforms
 from data import CCPDDataset
-from torchvision.transforms.functional import to_pil_image
 from torch.utils.data import DataLoader
 
 def custom_collate(batch):
@@ -133,9 +124,9 @@ if __name__ == "__main__":
     igfe = IGFE().to(device).train()
     
     # load pre trained model 
-    if os.path.exists( f'PLDPR/checkpoints/pdlpr_5_0.0001_16.pt'):
+    if os.path.exists( f'models/pdlpr_5_0.0001_16.pt'):
         print("checkpoint found. Loading state dict......")
-        checkpoint = torch.load( f'PLDPR/checkpoints/pdlpr_5_0.0001_16.pt', map_location=device)
+        checkpoint = torch.load( f'models/pdlpr_5_0.0001_16.pt', map_location=device)
         igfe.load_state_dict(checkpoint["igfe_state_dict"])
         encoder.load_state_dict(checkpoint["encoder_state_dict"])
         decoder.load_state_dict(checkpoint["decoder_state_dict"])

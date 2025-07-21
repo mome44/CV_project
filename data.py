@@ -7,8 +7,8 @@ from torch.utils.data import DataLoader
 import torchvision.transforms.functional as F
 import torchvision.transforms as T
 from torchvision import transforms
-from globals import BATCH_SIZE_TRAIN_Y, BATCH_SIZE_TEST_Y, PROVINCES, ALPHABETS, ADS, CHAR_LIST
-from utils import target_to_index
+from globals import *
+from utils import *
 
 class CCPDDataset(Dataset):
     #This class helps to manage the elements from the CCPDD dataset
