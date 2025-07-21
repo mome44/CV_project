@@ -18,18 +18,19 @@ import torch.nn as nn
 from torchvision import transforms
 from data import CCPDDataset
 from torchvision.transforms.functional import to_pil_image
+from torch.utils.data import DataLoader
+
+def custom_collate(batch):
+    return batch  # ritorna una lista di dizionari
 
 def test(model_parts, yolo_model, transform, evaluator, test_loader, char_idx, idx_char, device):
     igfe, encoder, decoder = model_parts
 
-    # keep track of metrics for plot
-    test_seq_accs = []
-    test_char_accs = []
-    test_lev = []
-
     igfe.eval()
     encoder.eval()
     decoder.eval()
+
+    predicted_strings = []
 
     evaluator = Evaluator(idx_char)
     pbar = tqdm(test_loader, desc=f"Testing")
@@ -37,26 +38,23 @@ def test(model_parts, yolo_model, transform, evaluator, test_loader, char_idx, i
     with torch.no_grad():
         for batch in pbar:
             # cropping images with yolo
-            full_images = batch["full_image_original"]
-            label_strs = batch["pdlpr_plate_string"]
+            sample = batch[0]
+            img = sample["full_image_original"]
+            label_strs = sample["pdlpr_plate_string"]
 
             images = []
 
-            for img_tensor in full_images:
-                # Unnormalize (assuming Normalize(mean=0.5, std=0.5))
-                img_tensor = (img_tensor * 0.5 + 0.5).clamp(0, 1)
-                pil_img = to_pil_image(img_tensor.cpu())
-
-                # Crop using YOLO
-                cropped_img = crop_image_yolo(yolo_model, pil_img)
-
-                if cropped_img is None:
-                    print("No plate detected — skipping image")
-                    continue
-
-                # Transform cropped image
-                transformed = transform(cropped_img).unsqueeze(0).to(device)
-                images.append(transformed)
+            # Unnormalize (assuming Normalize(mean=0.5, std=0.5))
+            #img_tensor = (img_tensor * 0.5 + 0.5).clamp(0, 1)
+            #pil_img = to_pil_image(img_tensor.cpu())
+            # Crop using YOLO
+            cropped_img = crop_image_yolo(yolo_model, img)
+            if cropped_img is None:
+                print("No plate detected — skipping image")
+                continue
+            # Transform cropped image
+            tensor = transform(cropped_img).unsqueeze(0).to(device)
+            images.append(tensor)
 
             if len(images) == 0:
                 continue  # skip batch if all images failed
@@ -81,11 +79,15 @@ def test(model_parts, yolo_model, transform, evaluator, test_loader, char_idx, i
             encoded = encoder(features)
             logits = decoder(encoded)
 
-            evaluator.update(logits, label_strs)
-            metrics = evaluator.compute()
-            test_seq_accs.append(metrics["seq_accuracy"])
-            test_char_accs.append(metrics["char_accuracy"])
-            test_lev.append(metrics["avg_levenshtein"])
+            evaluator.update(logits, [label_strs])
+            pred_str = evaluator.greedy_decode(logits)
+            predicted_strings.append(pred_str)
+            #print(f"traget string: {label_strs},  Predicted: {pred_str}")
+
+        metrics = evaluator.compute()
+        evaluator.print()
+
+    return metrics, predicted_strings
 
 
 def test_pdlpr(model_parts, evaluator, images, label_strs, char_idx, idx_char):
@@ -157,7 +159,7 @@ def test_pdlpr(model_parts, evaluator, images, label_strs, char_idx, idx_char):
 
 def crop_image_yolo(yolo_model, image):
     #image = Image.open(image_path).convert("RGB")
-    results = yolo_model(image)[0]  # Results object
+    results = yolo_model(image, verbose=False)[0]  # Results object
     boxes = results.boxes
 
     if boxes is None or len(boxes) == 0:
@@ -265,9 +267,13 @@ if __name__ == "__main__":
     dataset = CCPDDataset(base_dir="dataset", transform=transform)
     _, _, test_loader = CCPDDataset.get_dataloaders(
         base_dir="./dataset",
-        batch_size=16,
+        batch_size=1,
         transform=transform
     )
+
+    # Override del test loader con collate_fn personalizzato
+    test_dataset = CCPDDataset(base_dir="dataset", transform=transform).get_dataset("test")
+    test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, collate_fn=custom_collate)
     #pass to pdlpr
     
     #getting test labels
@@ -293,7 +299,7 @@ if __name__ == "__main__":
     #torch.save(results, "test_yolo_pdlpr_results.pt")
     
     print("start testing.........")
-    test_metrics, test_char_accs, test_seq_accs, test_lev = test(
+    metrics, predicted_strings = test(
         model_parts=(igfe, encoder, decoder),
         yolo_model = yolo_model,
         transform=transform,
@@ -303,3 +309,5 @@ if __name__ == "__main__":
         idx_char=idx2char,
         device=device
     )
+
+    print("First 5 predicted strings:", predicted_strings[:5])
