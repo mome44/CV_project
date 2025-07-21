@@ -58,7 +58,7 @@ run_name = get_run_name()
 best_model = YOLO(train_model_path, verbose = False)
 # best_model = YOLO("/Users/michelafuselli/Desktop/Michi/Università/Magistrale/Computer Vision/Project/CV_project/runs/train/yolov5_epochs20_bs8_lr0.001_imgs6402/weights/best.pt", verbose = False)
 
-# Dentro results: mAP@0.5, mAP@0.5:0.95. precision, recall, confusion matrix, curva PR, curva f1, ... --> vengono salvati in runs/detect/val
+# Dentro results: mAP@0.5, mAP@0.5:0.95. precision, recall, confusion matrix, curva PR, curva f1, ... --> vengono salvati in runs/detect
 results = best_model.val(
     data    = "ccpd.yaml",
     split   = 'val',
@@ -68,7 +68,7 @@ results = best_model.val(
 )
 
 image_dir = Path("dataset/images/val")
-output_dir = Path("runs/val") / f"{get_run_name()}_VAL_iou{int(IOU_THRESHOLD * 100)}"
+output_dir = Path("runs/detect") / f"{get_run_name()}_VAL_iou{int(IOU_THRESHOLD * 100)}"
 output_dir.mkdir(parents=True, exist_ok=True)
 
 iou_list = []
