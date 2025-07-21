@@ -17,7 +17,9 @@ label_folder = "dataset/labels_pdlpr/train"
 
 BATCH_SIZE = 16
 LR = 1e-4 #0.00001, mostly used
+
 NUM_EPOCHS = 10    
+
 
 #BATCH_SIZE = 32
 #LR = 1e-4
@@ -204,6 +206,7 @@ def train(model_parts, evaluator, train_loader, val_loader, char_idx, idx_char, 
     print(f"Loss: {total_loss / len(train_loader):.4f}")
     evaluator.print()
 
+
     train_seq_accuracy = metrics['seq_accuracy']
     val_seq_accuracy = val_metrics["seq_accuracy"]
     train_char_accuracy = metrics['char_accuracy']
@@ -214,6 +217,7 @@ def train(model_parts, evaluator, train_loader, val_loader, char_idx, idx_char, 
         f.write(f"Final validation accuracy: {val_seq_accuracy:.4f}\n")
         f.write(f"Final character train accuracy: {train_char_accuracy:.4f}\n")
         f.write(f"Final character validation accuracy: {val_char_accuracy:.4f}\n")
+
     print(f"results saved in results/PDLPR-{NUM_EPOCHS}_{LR}_{BATCH_SIZE}.txt")
 
     # plot loss over epochs
