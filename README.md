@@ -29,7 +29,7 @@ These file are the testing for the single individual part
 - test_baseline_traditional.py: testing for the plate detection using traditional techniques, this doesn't require training so it does not have the train file counterpart.
 - test_yolo.py: testing for yolo
 
-### Other files
+#### Other evaluation files
 - baseline_detection.py: here we use traitional techniques like Canny edge detector to do plate detection. This does not require any training. We compute the average intersection over union over all the predictions.
 
 Then there are two files that implements two pipelines, that test the two methods (Yolov5 + pdlpr) and (traditional + cnnctc) by considering one image at a time, segmenting it and then inputting it directly to the character detection to make the final prediction.
@@ -37,3 +37,18 @@ Then there are two files that implements two pipelines, that test the two method
 - pipeline_testing.py: the pipeline of the method in the paper that loads our trained models and compute the accuracy
 - pipeline_baseline_testing.py: the pipeline of the baseline method
 
+### Notebook
+In the notebook CV_project.ipynb we have the exact same code in the files above but structured in the notebook format
+
+### Other files
+- ccpd.yaml is the file that YOLO uses for loading the database so without using our custom class
+- vocab.json contains the vocabulary dictionary that is used by PDLPR and it is generated during training
+- CV_project_presentation.pdf the presentation of our project
+
+## Authors
+
+- Carlotta Anna Maria Ciani 1881291
+- Michela Fuselli 1883535
+- Simone Federico Laganà 1946083 
+
+A.a 2024/2025
