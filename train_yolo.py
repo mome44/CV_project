@@ -22,20 +22,20 @@ def train_yolo():
         print(f"[INFO] Model {model_name} already exists ---> SKIP training!!")
         return YOLO(model_name)
     
-    # Crea un modello untrained basato sui params di configurazione 
+    # Create an untrained model based on the configuration params
     model = YOLO("yolov5s.yaml")
     
     model.train(
-        data    = "ccpd.yaml",                      # path al file .yaml per la configurazione
+        data    = "ccpd.yaml",                      # path to .yaml file for the configuration
         epochs  = EPOCHS_TRAIN_Y,                  
         batch   = BATCH_SIZE_TRAIN_Y,
         lr0     = LR_INIT_Y,
         imgsz   = IMAGE_SIZE_Y,
-        save    = True,                             # salva i training checkpoints e i weigths del modello finale
-        device  = "mps",                            # DA CAMBIARE A SECONDA DEL PC --> "cpu"
-        project = "runs/train",                     # directory in cui salvare gli outputs del training
-        name    = model_name.replace(".pt", ""),    # crea una subdir nella cartella del progetto, dove salva i training logs e outputs
-        val     = True,                             # run validation qui per creare results.csv e .png
+        save    = True,                             # save the training checkpoints and weigths of the final model
+        device  = "mps",                            # TO BE CHANGED ACCORDING TO PC --> "cpu"
+        project = "runs/train",                     # directory where to save the outputs of training
+        name    = model_name.replace(".pt", ""),    # create a subdir in the project folder, where to save training logs and outputs
+        val     = True,                             # run validation here to create results.csv and .png
         plots   = True                              
     )
 
@@ -53,12 +53,12 @@ train_model_path = train_yolo()
 
 run_name = get_run_name()
 
-# VALIDATION dopo il training
-# Carica e usa il modello migliore best.pt --> crea una model instance inizializzata con i trained weights
+# VALIDATION after training
+# Load and use the best model best.pt --> create a model instance initializzed with the trained weights
 best_model = YOLO(train_model_path, verbose = False)
 # best_model = YOLO("/Users/michelafuselli/Desktop/Michi/Università/Magistrale/Computer Vision/Project/CV_project/runs/train/yolov5_epochs20_bs8_lr0.001_imgs6402/weights/best.pt", verbose = False)
 
-# Dentro results: mAP@0.5, mAP@0.5:0.95. precision, recall, confusion matrix, curva PR, curva f1, ... --> vengono salvati in runs/detect
+# Inside results: mAP@0.5, mAP@0.5:0.95. precision, recall, confusion matrix, curva PR, curva f1, ... --> are saved in runs/detect
 results = best_model.val(
     data    = "ccpd.yaml",
     split   = 'val',
@@ -73,7 +73,7 @@ output_dir.mkdir(parents=True, exist_ok=True)
 
 iou_list = []
 
-# Loop sulle immagini
+# Loop over images
 for image_path in sorted(image_dir.glob("*.jpg")):
     # Predict
     result = best_model(image_path, max_det=5, verbose = False)[0]
@@ -81,20 +81,21 @@ for image_path in sorted(image_dir.glob("*.jpg")):
 
     real_box = load_gt_box_from_label_validation(image_path)
     if real_box is None:
-        continue  # skip immagine se GT non c'è o è invalid
+        # skip image if no GT or invalid
+        continue
 
     # Calcola IoU tra ogni box predetta e quella reale
     for predicted_box in predictions:
         iou = compute_iou(predicted_box, real_box)
         iou_list.append(iou)
 
-# Calcolare la media tra tutti i valori di iou
+# Compute average among all iou values 
 if iou_list:
     mean_iou = sum(iou_list) / len(iou_list)
 else:
     mean_iou = 0.0
 
-# Salva in .txt
+# Save in .txt
 txt_path = output_dir / "mean_iou.txt"
 with open(txt_path, "w") as f:
     f.write(f"Mean IoU over validation set: {mean_iou:.4f}\n")

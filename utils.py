@@ -19,7 +19,7 @@ from globals import IOU_THRESHOLD
 import json
 
 
-# Inizializzare il lettore solo una volta: cinese semplificato e inglese
+# Initialize the reader just once: simplified chinese and english 
 reader = easyocr.Reader(['ch_sim', 'en'])
 
 base_dir = Path("dataset")
@@ -184,11 +184,10 @@ def index_to_target(index_list):
     return output
 
 
+# These funcitions aim at retrieving the coordinates of the true bounding box (ground truth), 
+# for both validation and testing. The format returned is [x1, y1, x2, y2], 
+# if not label is found or it is invalid, None is returned.
 def load_gt_box_from_label_validation(image_path):
-    """
-    Load the ground truth box from a YOLO-format label file.
-    Returns [x1, y1, x2, y2] or None if label file is missing/invalid.
-    """
     label_path = Path("dataset/labels/val") / (image_path.stem + ".txt")
 
     if not label_path.exists():
@@ -224,10 +223,6 @@ def load_gt_box_from_label_validation(image_path):
 
 
 def load_gt_box_from_label_test(image_path):
-    """
-    Load the ground truth box from a YOLO-format label file.
-    Returns [x1, y1, x2, y2] or None if label file is missing/invalid.
-    """
     label_path = Path("dataset/labels/test") / (image_path.stem + ".txt")
 
     if not label_path.exists():
@@ -266,7 +261,8 @@ def get_label_yolo(label_path):
     with open(label_path, "r", encoding="utf-8") as f:
         line = f.readline().strip()
     parts = list(map(float, line.split()))
-    return torch.tensor(parts[1:], dtype=torch.float32)     # x, y, width, height
+    # it returns x, y, width, height
+    return torch.tensor(parts[1:], dtype=torch.float32) 
 
 
 def get_ground_truth_coordinates(yolo_tensor, image_width, image_height):
@@ -281,31 +277,30 @@ def get_ground_truth_coordinates(yolo_tensor, image_width, image_height):
 
 
 def plate_detector(image_path, true_coordinates):
-    # Carica immagine
+    # Load the image
     img = cv2.imread(str(image_path))
     img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
-    # Isolamento delle parti verdi 
-    # (le targhe hanno la scritta nera su fondo verde)
-    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)              # Conversione da RGB a HSV (per filtrare i colori sulla base del tono)
-    lower_green = np.array([40, 40, 40])                    # Range del tono di verde in HSV
+    # Isolate green parts (the plates have a black text on a green backgroung)
+    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)              # Convert from RGB to HSV (to filter colours basing on the tone)
+    lower_green = np.array([40, 40, 40])                    # HSV tone range for green
     upper_green = np.array([80, 255, 255])
-    mask = cv2.inRange(hsv, lower_green, upper_green)       # Crea una binary mask
+    mask = cv2.inRange(hsv, lower_green, upper_green)       # Create a binary mask
 
     # Morphology
-    # L'edge detector mi ritorna una serie di tanti contorni frammentati, 
-    # devo usare operazioni morfologiche per unire linee che sono vicine tra loro
+    # The edge detector returns multiple fragmented contours, 
+    # I need to use morphological operations to bound together near lines
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
     cleaned_mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
 
     # Edge detector --> Canny
     edges = cv2.Canny(cleaned_mask, 100, 200)
 
-    # Trova i bordi
+    # Found the contours (borders)
     contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-    # Geometric filter + controllo con OCR per vedere se ci sono numeri/lettere
-    # Scartare le regiorni che non sono targe
+    # Geometric filter + OCR check to see if there are numbers/letters 
+    # Discard regiorns where there are no plates
     candidates = []
     for cnt in contours:
         x, y, w, h = cv2.boundingRect(cnt)
@@ -328,8 +323,8 @@ def plate_detector(image_path, true_coordinates):
         iou = compute_iou([x, y, x+w, y+h], true_coordinates)
         ocr_score = len(clean_text) if len(clean_text) >= 4 else 0
 
-        # score = iou + 1 * ocr_score     # OCR pesa di più
-        score = 1.5 * (ocr_score / 8.0) + 0.5 * iou     # OCR pesa di più ma non ignoro iou
+        # score = iou + 1 * ocr_score     # OCR weights more
+        score = 1.5 * (ocr_score / 8.0) + 0.5 * iou     # OCR weights more but I still consider iou
 
         candidates.append({
             "bbox": [x, y, x+w, y+h],

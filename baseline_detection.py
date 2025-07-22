@@ -8,7 +8,7 @@ from network import*
 from globals import *
 from data import *
 
-# Inizializzare il lettore solo una volta: cinese semplificato e inglese
+# Initialize the reader just once: simplified chinese and english 
 reader = easyocr.Reader(['ch_sim', 'en'])
 
 
@@ -22,7 +22,7 @@ open(diff_results_txt, "w").close()
 
 total_iou = 0.0
 num_iou = 0
-num_passed_iou = 0      # tiene il conto dei valori >= 0.7
+num_passed_iou = 0      # counts values >= 0.7
 
 
 for image_path in tqdm(images_dir.glob("*.jpg"), desc="Processing images", unit="img"):
@@ -50,7 +50,7 @@ for image_path in tqdm(images_dir.glob("*.jpg"), desc="Processing images", unit=
             f.write("Box Pred: NONE\n")
             f.write("---\n")
         
-        # contala come mancante
+        # count it as missing
         total_iou += 0.0
         num_iou += 1
         continue
