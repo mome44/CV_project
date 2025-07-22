@@ -1,6 +1,8 @@
 # CV_project
 ## Introduction
-In this project we implement the main algorithm for plate detection which is formed by YOLOv5 and PDLPR and then we compare it to a baseline method composed by traditional technique for plate area detection and CNN + CTC for plate character recognition
+In this project we implement the main algorithm for plate detection which is formed by YOLOv5 and PDLPR and then we compare it to a baseline method composed by traditional technique for plate area detection and CNN + CTC for plate character recognition.
+
+We used both visual studio as a repository and a python notebook that can work with GPU, so we put both
 
 ## Folder structure
 - /dataset: here there are the images and the labels that are used for the training testing and validation, /cropped_images and /labels_pdlpr are used for the second part of character recognition in PDLPR and in the CNN + CTC method.
@@ -41,12 +43,29 @@ These file are the testing for the single individual part
 - test_pdlpr.py: testing for PDLPR
 - test_baseline_traditional.py: testing for the plate detection using traditional techniques, this doesn't require training so it does not have the train file counterpart.
 - test_yolo.py: testing for YOLO
-
-### Other files
-- baseline_detection.py: here we use traitional techniques like Canny edge detector to do plate detection. This does not require any training. We compute the average intersection over union over all the predictions.
-
+#### Other evaluation files
+- baseline_detection.py: here we use traitional techniques like Canny edge detector to do plate detection. This does not require any training. We compute the average intersection over union over all the predictions. 
 Then there are two files that implements two pipelines, that test the two methods (YOLOv5 + PDLPR) and (traditional + CNNCTC) by considering one image at a time, segmenting it and then inputting it directly to the character detection to make the final prediction.
 
 - pipeline_testing.py: the pipeline of the method in the paper that loads our trained models and compute the accuracy
 - pipeline_baseline_testing.py: the pipeline of the baseline method
+
+### Notebook
+In the notebook CV_project.ipynb we have the exact same code in the files above but structured in the notebook format
+
+### Other files
+- ccpd.yaml is the file that YOLO uses for loading the database so without using our custom class
+- vocab.json contains the vocabulary dictionary that is used by PDLPR and it is generated during training
+
+
+## Authors
+
+- Carlotta Anna Maria Ciani 1881291
+- Michela Fuselli 1883535
+- Simone Federico Laganà 1946083 
+
+A.a 2024/2025
+
+
+
 
