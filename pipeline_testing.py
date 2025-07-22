@@ -11,9 +11,6 @@ from torchvision import transforms
 from data import CCPDDataset
 from torch.utils.data import DataLoader
 
-def custom_collate(batch):
-    return batch  # ritorna una lista di dizionari
-
 def test(model_parts, yolo_model, transform, evaluator, test_loader, char_idx, idx_char, device):
     igfe, encoder, decoder = model_parts
 
@@ -154,22 +151,14 @@ if __name__ == "__main__":
     _, _, test_loader = CCPDDataset.get_dataloaders(
         base_dir="./dataset",
         batch_size=1,
-        transform=transform
+        transform=transform,
+        collate_fn=custom_collate_simple
     )
-
-    # Override del test loader con collate_fn personalizzato
-    test_dataset = CCPDDataset(base_dir="dataset", transform=transform).get_dataset("test")
-    test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, collate_fn=custom_collate)
-    #pass to pdlpr
     
     #getting test labels
     label_dir = Path("dataset/labels_pdlpr/test")
     label_strs = []
-    
-    for txt_file in sorted(label_dir.glob("*.txt")):
-        with open(txt_file, "r", encoding="utf-8") as f:
-            label = f.read().strip()
-            label_strs.append(label)
+
     
     print("First 5 labels:", label_strs[:5])
     
