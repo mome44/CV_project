@@ -344,6 +344,9 @@ def plate_detector(image_path, true_coordinates):
     return best["bbox"], best["text"]
 
 # functions for pdlpr 
+def custom_collate_simple(batch):
+    return batch
+
 def custom_collate(batch):
     return {
         "cropped_image": torch.stack([item["cropped_image"] for item in batch]),
@@ -397,7 +400,7 @@ def load_vocab(path="vocab.json"):
     return char_idx, idx_char
 
 def plot_metrics(train_seq, val_seq, train_char, val_char):
-    epochs = range(1, NUM_EPOCHS + 1)
+    epochs = range(1, NUM_EPOCHS_PDLPR + 1)
 
     plt.figure()
     plt.plot(epochs, [l.detach().cpu().item() if torch.is_tensor(l) else l for l in train_seq], label="Train Seq Accuracy")
@@ -407,7 +410,7 @@ def plot_metrics(train_seq, val_seq, train_char, val_char):
     plt.ylabel("Accuracy")
     plt.legend()
     plt.grid(True)
-    plt.savefig(f"metrics_images/seq_accs_plot_{NUM_EPOCHS}_{LR}_{BATCH_SIZE}.png", dpi=300)
+    plt.savefig(f"metrics_images/seq_accs_plot_{NUM_EPOCHS_PDLPR}_{LR_PDLPR}_{BATCH_SIZE_PDLPR}.png", dpi=300)
 
     plt.figure()
     plt.plot(epochs, [l.detach().cpu().item() if torch.is_tensor(l) else l for l in train_char], label="Train Char Accuracy")
@@ -417,7 +420,7 @@ def plot_metrics(train_seq, val_seq, train_char, val_char):
     plt.ylabel("Accuracy")
     plt.legend()
     plt.grid(True)
-    plt.savefig(f"metrics_images/char_accs_plot{NUM_EPOCHS}_{LR}_{BATCH_SIZE}.png", dpi=300)
+    plt.savefig(f"metrics_images/char_accs_plot{NUM_EPOCHS_PDLPR}_{LR_PDLPR}_{BATCH_SIZE_PDLPR}.png", dpi=300)
 
 
 # Evaluator
