@@ -16,9 +16,9 @@ NUM_CHAR = len(CHAR_LIST) + 1 #since we include the blank character
 BATCH_SIZE = 32
 LR = 0.001
 WEIGHT_DECAY = 0.0001
-NUM_EPOCHS = 40
+NUM_EPOCHS = 60
 
-SAVE_NAME = f"n_epochs_{NUM_EPOCHS}_bs_{BATCH_SIZE}_LR_{LR}_wd_{WEIGHT_DECAY}_a"
+SAVE_NAME = f"n_epochs_{NUM_EPOCHS}_bs_{BATCH_SIZE}_LR_{LR}_wd_{WEIGHT_DECAY}"
 model = CNN_CTC_model(num_char=NUM_CHAR, hidden_size=256)
 ctc_loss = nn.CTCLoss(blank=0) 
 

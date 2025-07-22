@@ -12,10 +12,10 @@ from utils import *
 from torchvision import transforms
 
 #Hyperparameters combination
-batch_sizes = [32]  #provare con 64
+batch_sizes = [64, 32]  
 learning_rates = [0.001]
 weight_decays = [1e-4, 5e-4]
-epochs = [60, 70]
+epochs = [40]
 
 CHAR_LIST = sorted(set(PROVINCES+ALPHABETS+ADS))
 PLATE_LENGTH = 8
@@ -33,7 +33,7 @@ for bs, lr, wd, ne in combinations:
     WEIGHT_DECAY = wd
     NUM_EPOCHS = ne
 
-    SAVE_NAME = f"n_epochs_{NUM_EPOCHS}_bs_{BATCH_SIZE}_LR_{LR}_wd_{WEIGHT_DECAY}_a"
+    SAVE_NAME = f"n_epochs_{NUM_EPOCHS}_bs_{BATCH_SIZE}_LR_{LR}_wd_{WEIGHT_DECAY}"
 
     print(f"training with {SAVE_NAME}")
     
